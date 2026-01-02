@@ -1,7 +1,7 @@
 {
   "name": "Track Deez",
   "short_name": "Track Deez",
-  "description": "A progressive web app for tracking",
+  "description": "Daily habit tracking app with color-coded calendar and statistics",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

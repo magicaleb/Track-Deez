@@ -27,31 +27,266 @@
 </head>
 <body>
     <div id="app">
-        <header>
-            <h1>Track Deez</h1>
-        </header>
-        
-        <main>
-            <div class="container">
-                <h2>Welcome to Track Deez</h2>
-                <p>Your progressive web app is ready!</p>
-                
-                <div id="install-prompt" class="install-banner" style="display: none;">
-                    <p>Install this app on your device for quick and easy access.</p>
-                    <button id="install-button">Install App</button>
+        <!-- Navigation -->
+        <nav class="bottom-nav">
+            <button class="nav-btn active" data-view="today">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+                </svg>
+                <span>Today</span>
+            </button>
+            <button class="nav-btn" data-view="calendar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/>
+                    <line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+                <span>Calendar</span>
+            </button>
+            <button class="nav-btn" data-view="stats">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="20" x2="12" y2="10"/>
+                    <line x1="18" y1="20" x2="18" y2="4"/>
+                    <line x1="6" y1="20" x2="6" y2="16"/>
+                </svg>
+                <span>Stats</span>
+            </button>
+            <button class="nav-btn" data-view="settings">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M12 1v6m0 6v6m9-9h-6m-6 0H3m15.36-4.64l-4.24 4.24m-6.72 0L2.64 7.36m18.72 9.28l-4.24-4.24m-6.72 0l-4.24 4.24"/>
+                </svg>
+                <span>Settings</span>
+            </button>
+        </nav>
+
+        <!-- Today View -->
+        <div id="today-view" class="view active">
+            <header class="view-header">
+                <h1>Today</h1>
+                <div class="date-display" id="current-date"></div>
+            </header>
+            
+            <main class="view-content">
+                <div class="day-status" id="day-status">
+                    <div class="status-indicator"></div>
                 </div>
-                
-                <div class="status">
-                    <p id="status-message">Checking connection...</p>
+
+                <div class="section">
+                    <h2>Habits</h2>
+                    <div id="habits-list" class="habits-list">
+                        <div class="empty-state">
+                            <p>No habits yet. Add some in Settings.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section" id="tracking-section" style="display: none;">
+                    <h2>Daily Tracking</h2>
+                    <div id="tracking-list" class="tracking-list"></div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Calendar View -->
+        <div id="calendar-view" class="view">
+            <header class="view-header">
+                <h1>Calendar</h1>
+                <div class="month-nav">
+                    <button id="prev-month" class="icon-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="15 18 9 12 15 6"/>
+                        </svg>
+                    </button>
+                    <span id="month-year"></span>
+                    <button id="next-month" class="icon-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="9 18 15 12 9 6"/>
+                        </svg>
+                    </button>
+                </div>
+            </header>
+            
+            <main class="view-content">
+                <div class="calendar-grid" id="calendar-grid"></div>
+                <div class="calendar-legend">
+                    <div class="legend-item">
+                        <span class="legend-dot green"></span>
+                        <span>All complete</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-dot yellow"></span>
+                        <span>Some complete</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-dot red"></span>
+                        <span>None complete</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-dot gray"></span>
+                        <span>No data</span>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Statistics View -->
+        <div id="stats-view" class="view">
+            <header class="view-header">
+                <h1>Statistics</h1>
+                <div class="time-range-selector">
+                    <button class="range-btn active" data-range="7">7 days</button>
+                    <button class="range-btn" data-range="30">30 days</button>
+                    <button class="range-btn" data-range="90">90 days</button>
+                    <button class="range-btn" data-range="all">All</button>
+                </div>
+            </header>
+            
+            <main class="view-content">
+                <div class="stats-summary">
+                    <div class="stat-card green">
+                        <div class="stat-value" id="green-days">0</div>
+                        <div class="stat-label">Green Days</div>
+                    </div>
+                    <div class="stat-card yellow">
+                        <div class="stat-value" id="yellow-days">0</div>
+                        <div class="stat-label">Yellow Days</div>
+                    </div>
+                    <div class="stat-card red">
+                        <div class="stat-value" id="red-days">0</div>
+                        <div class="stat-label">Red Days</div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Completion Rate</h2>
+                    <div class="chart-container">
+                        <canvas id="completion-chart"></canvas>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Habit Performance</h2>
+                    <div id="habit-stats" class="habit-stats"></div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Settings View -->
+        <div id="settings-view" class="view">
+            <header class="view-header">
+                <h1>Settings</h1>
+            </header>
+            
+            <main class="view-content">
+                <div class="section">
+                    <div class="section-header">
+                        <h2>Habits</h2>
+                        <button id="add-habit-btn" class="btn-primary">+ Add Habit</button>
+                    </div>
+                    <div id="habits-settings-list" class="settings-list">
+                        <div class="empty-state">
+                            <p>No habits configured yet.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-header">
+                        <h2>Tracking Fields</h2>
+                        <button id="add-tracking-btn" class="btn-primary">+ Add Field</button>
+                    </div>
+                    <div id="tracking-settings-list" class="settings-list">
+                        <div class="empty-state">
+                            <p>No tracking fields configured yet.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Data</h2>
+                    <button id="export-data-btn" class="btn-secondary">Export Data</button>
+                    <button id="clear-data-btn" class="btn-danger">Clear All Data</button>
+                </div>
+
+                <div id="install-prompt" class="install-banner" style="display: none;">
+                    <p>Install this app for quick and easy access.</p>
+                    <button id="install-button" class="btn-primary">Install App</button>
+                </div>
+            </main>
+        </div>
+
+        <!-- Modal for Day Details -->
+        <div id="day-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="modal-date"></h2>
+                    <button class="modal-close" id="close-modal">×</button>
+                </div>
+                <div class="modal-body" id="modal-body"></div>
+            </div>
+        </div>
+
+        <!-- Modal for Adding/Editing Habits -->
+        <div id="habit-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="habit-modal-title">Add Habit</h2>
+                    <button class="modal-close" id="close-habit-modal">×</button>
+                </div>
+                <div class="modal-body">
+                    <form id="habit-form">
+                        <div class="form-group">
+                            <label for="habit-name">Habit Name</label>
+                            <input type="text" id="habit-name" required placeholder="e.g., Exercise">
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="btn-secondary" id="cancel-habit">Cancel</button>
+                            <button type="submit" class="btn-primary">Save</button>
+                        </div>
+                    </form>
                 </div>
             </div>
-        </main>
-        
-        <footer>
-            <p>&copy; 2026 Track Deez</p>
-        </footer>
+        </div>
+
+        <!-- Modal for Adding/Editing Tracking Fields -->
+        <div id="tracking-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="tracking-modal-title">Add Tracking Field</h2>
+                    <button class="modal-close" id="close-tracking-modal">×</button>
+                </div>
+                <div class="modal-body">
+                    <form id="tracking-form">
+                        <div class="form-group">
+                            <label for="tracking-name">Field Name</label>
+                            <input type="text" id="tracking-name" required placeholder="e.g., Mood">
+                        </div>
+                        <div class="form-group">
+                            <label for="tracking-type">Input Type</label>
+                            <select id="tracking-type" required>
+                                <option value="number">Number</option>
+                                <option value="text">Text</option>
+                                <option value="scale">Scale (1-5)</option>
+                                <option value="scale10">Scale (1-10)</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="unit-group" style="display: none;">
+                            <label for="tracking-unit">Unit (optional)</label>
+                            <input type="text" id="tracking-unit" placeholder="e.g., hours, cups">
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="btn-secondary" id="cancel-tracking">Cancel</button>
+                            <button type="submit" class="btn-primary">Save</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
     
     <script src="app.js"></script>
+    <script src="app-main.js"></script>
 </body>
 </html>

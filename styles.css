@@ -12,6 +12,7 @@
     --success: #22c55e;
     --warning: #eab308;
     --danger: #ef4444;
+    --danger-dark: #dc2626;
     --text-primary: #1f2937;
     --text-secondary: #6b7280;
     --background: #f9fafb;
@@ -651,7 +652,7 @@ input, textarea, select {
 }
 
 .btn-danger:active {
-    background: #dc2626;
+    background: var(--danger-dark);
 }
 
 /* Install banner */

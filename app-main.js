@@ -1,5 +1,9 @@
 // Track Deez - Habit Tracking Application
 
+// Constants
+const ALL_DAYS_RANGE = 365;
+const CANVAS_HEIGHT = 200;
+
 // Data Management
 class DataManager {
     constructor() {
@@ -434,7 +438,7 @@ class HabitTrackerApp {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                this.statsRange = btn.dataset.range === 'all' ? 365 : parseInt(btn.dataset.range);
+                this.statsRange = btn.dataset.range === 'all' ? ALL_DAYS_RANGE : parseInt(btn.dataset.range);
                 this.renderStatsView();
             });
         });
@@ -482,7 +486,7 @@ class HabitTrackerApp {
         
         // Set canvas size
         canvas.width = canvas.offsetWidth;
-        canvas.height = 200;
+        canvas.height = CANVAS_HEIGHT;
 
         const width = canvas.width;
         const height = canvas.height;

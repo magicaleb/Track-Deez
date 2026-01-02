@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#2196F3">
+    
+    <!-- iOS specific meta tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Track Deez">
+    
+    <!-- iOS icons -->
+    <link rel="apple-touch-icon" href="icons/icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180x180.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="icons/icon-167x167.png">
+    
+    <!-- Standard PWA -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192x192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512x512.png">
+    
+    <link rel="stylesheet" href="styles.css">
+    
+    <title>Track Deez</title>
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>Track Deez</h1>
+        </header>
+        
+        <main>
+            <div class="container">
+                <h2>Welcome to Track Deez</h2>
+                <p>Your progressive web app is ready!</p>
+                
+                <div id="install-prompt" class="install-banner" style="display: none;">
+                    <p>Install this app on your device for quick and easy access.</p>
+                    <button id="install-button">Install App</button>
+                </div>
+                
+                <div class="status">
+                    <p id="status-message">Checking connection...</p>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>&copy; 2026 Track Deez</p>
+        </footer>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>

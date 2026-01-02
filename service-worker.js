@@ -1,9 +1,10 @@
-const CACHE_NAME = 'track-deez-v1';
+const CACHE_NAME = 'track-deez-v2';
 const urlsToCache = [
   '/',
   '/index.html',
   '/styles.css',
   '/app.js',
+  '/app-main.js',
   '/manifest.json'
 ];
 

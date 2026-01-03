@@ -2,12 +2,12 @@
   "name": "Track Deez",
   "short_name": "Track Deez",
   "description": "Daily habit tracking app with color-coded calendar and statistics",
-  "start_url": "/",
+  "start_url": "/Track-Deez/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#2196F3",
   "orientation": "portrait",
-  "scope": "/",
+  "scope": "/Track-Deez/",
   "icons": [
     {
       "src": "icons/icon-72x72.png",

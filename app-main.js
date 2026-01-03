@@ -200,6 +200,21 @@ class DataManager {
         return field;
     }
 
+    async updateTrackingField(id, name, type, unit = '') {
+        const fieldIndex = this.data.trackingFields.findIndex(f => f.id === id);
+        if (fieldIndex !== -1) {
+            this.data.trackingFields[fieldIndex] = {
+                ...this.data.trackingFields[fieldIndex],
+                name,
+                type,
+                unit
+            };
+            await this.saveData();
+            return this.data.trackingFields[fieldIndex];
+        }
+        return null;
+    }
+
     async deleteTrackingField(id) {
         this.data.trackingFields = this.data.trackingFields.filter(f => f.id !== id);
         // Clean up tracking data from days
@@ -235,6 +250,18 @@ class DataManager {
     }
 
     getDayStatus(date) {
+        // Check if date is in the future
+        // Future dates have no data yet, so they should be marked as gray
+        // This prevents the calendar from showing completion status for dates that haven't occurred
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const checkDate = new Date(date);
+        checkDate.setHours(0, 0, 0, 0);
+        
+        if (checkDate > today) {
+            return 'gray'; // Future dates have no data
+        }
+        
         const dayData = this.getDayData(date);
         const totalHabits = this.data.habits.length;
         
@@ -254,6 +281,44 @@ class DataManager {
 
     exportData() {
         return JSON.stringify(this.data, null, 2);
+    }
+
+    async importData(importedData) {
+        try {
+            // Validate the structure
+            if (!importedData.habits || !importedData.trackingFields || !importedData.days) {
+                throw new Error('Invalid data format');
+            }
+
+            // Merge habits (avoid duplicates by name to prevent UI confusion)
+            // Note: This intentionally uses name matching to avoid duplicate visible entries
+            const existingHabitNames = new Set(this.data.habits.map(h => h.name));
+            importedData.habits.forEach(habit => {
+                if (!existingHabitNames.has(habit.name)) {
+                    this.data.habits.push(habit);
+                }
+            });
+
+            // Merge tracking fields (avoid duplicates by name to prevent UI confusion)
+            // Note: This intentionally uses name matching to avoid duplicate visible entries
+            const existingFieldNames = new Set(this.data.trackingFields.map(f => f.name));
+            importedData.trackingFields.forEach(field => {
+                if (!existingFieldNames.has(field.name)) {
+                    this.data.trackingFields.push(field);
+                }
+            });
+
+            // Merge day data (overwrite existing dates)
+            Object.keys(importedData.days).forEach(date => {
+                this.data.days[date] = importedData.days[date];
+            });
+
+            await this.saveData();
+            return { success: true };
+        } catch (error) {
+            console.error('Error importing data:', error);
+            return { success: false, error: error.message };
+        }
     }
 
     async clearAllData() {
@@ -396,46 +461,25 @@ class HabitTrackerApp {
                     await this.dataManager.setTracking(this.currentDate, fieldId, e.target.value);
                 });
             });
-
-            trackingList.querySelectorAll('.scale-btn').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    const fieldId = btn.dataset.fieldId;
-                    const value = btn.dataset.value;
-                    
-                    // Update UI
-                    const parent = btn.parentElement;
-                    parent.querySelectorAll('.scale-btn').forEach(b => b.classList.remove('selected'));
-                    btn.classList.add('selected');
-                    
-                    // Save data
-                    await this.dataManager.setTracking(this.currentDate, fieldId, value);
-                });
-            });
         }
     }
 
     renderTrackingInput(field, value) {
         switch (field.type) {
+            case 'boolean':
+                return `
+                    <select class="tracking-input" data-field-id="${field.id}">
+                        <option value="">-- Select --</option>
+                        <option value="Yes" ${value === 'Yes' ? 'selected' : ''}>Yes</option>
+                        <option value="No" ${value === 'No' ? 'selected' : ''}>No</option>
+                    </select>
+                `;
             case 'number':
                 return `<input type="number" class="tracking-input" data-field-id="${field.id}" value="${value}">`;
             case 'text':
                 return `<input type="text" class="tracking-input" data-field-id="${field.id}" value="${value}">`;
-            case 'scale':
-                return `
-                    <div class="scale-input">
-                        ${[1,2,3,4,5].map(n => 
-                            `<button class="scale-btn ${value == n ? 'selected' : ''}" data-field-id="${field.id}" data-value="${n}">${n}</button>`
-                        ).join('')}
-                    </div>
-                `;
-            case 'scale10':
-                return `
-                    <div class="scale-input">
-                        ${[1,2,3,4,5,6,7,8,9,10].map(n => 
-                            `<button class="scale-btn ${value == n ? 'selected' : ''}" data-field-id="${field.id}" data-value="${n}">${n}</button>`
-                        ).join('')}
-                    </div>
-                `;
+            case 'time':
+                return `<input type="time" class="tracking-input" data-field-id="${field.id}" value="${value}">`;
             default:
                 return '';
         }
@@ -727,6 +771,12 @@ class HabitTrackerApp {
                         <div class="setting-detail">Type: ${field.type}${field.unit ? `, Unit: ${field.unit}` : ''}</div>
                     </div>
                     <div class="setting-actions">
+                        <button class="btn-icon edit" data-field-id="${field.id}">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                        </button>
                         <button class="btn-icon delete" data-field-id="${field.id}">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <polyline points="3 6 5 6 21 6"/>
@@ -736,6 +786,13 @@ class HabitTrackerApp {
                     </div>
                 </div>
             `).join('');
+
+            trackingList.querySelectorAll('.btn-icon.edit').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const fieldId = btn.dataset.fieldId;
+                    this.showTrackingModal(fieldId);
+                });
+            });
 
             trackingList.querySelectorAll('.btn-icon.delete').forEach(btn => {
                 btn.addEventListener('click', async () => {
@@ -751,6 +808,7 @@ class HabitTrackerApp {
         // Buttons
         document.getElementById('add-habit-btn').onclick = () => this.showHabitModal();
         document.getElementById('add-tracking-btn').onclick = () => this.showTrackingModal();
+        document.getElementById('import-data-btn').onclick = () => this.showImportModal();
         document.getElementById('export-data-btn').onclick = () => this.exportData();
         document.getElementById('clear-data-btn').onclick = () => this.clearData();
     }
@@ -816,7 +874,13 @@ class HabitTrackerApp {
             const unit = document.getElementById('tracking-unit').value.trim();
             
             if (name && type) {
-                await this.dataManager.addTrackingField(name, type, unit);
+                const editingId = document.getElementById('tracking-form').dataset.editingId;
+                if (editingId) {
+                    await this.dataManager.updateTrackingField(editingId, name, type, unit);
+                    delete document.getElementById('tracking-form').dataset.editingId;
+                } else {
+                    await this.dataManager.addTrackingField(name, type, unit);
+                }
                 document.getElementById('tracking-modal').classList.remove('active');
                 document.getElementById('tracking-form').reset();
                 document.getElementById('unit-group').style.display = 'none';
@@ -830,6 +894,52 @@ class HabitTrackerApp {
                 document.getElementById('tracking-modal').classList.remove('active');
             }
         };
+
+        // Import modal
+        document.getElementById('close-import-modal').onclick = () => {
+            document.getElementById('import-modal').classList.remove('active');
+        };
+
+        document.getElementById('cancel-import').onclick = () => {
+            document.getElementById('import-modal').classList.remove('active');
+        };
+
+        document.getElementById('import-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('import-file');
+            const file = fileInput.files[0];
+            
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    try {
+                        const importedData = JSON.parse(event.target.result);
+                        const result = await this.dataManager.importData(importedData);
+                        
+                        if (result.success) {
+                            alert('Data imported successfully!');
+                            document.getElementById('import-modal').classList.remove('active');
+                            document.getElementById('import-form').reset();
+                            this.renderTodayView();
+                            this.renderCalendarView();
+                            this.renderStatsView();
+                            this.renderSettingsView();
+                        } else {
+                            alert('Error importing data: ' + result.error);
+                        }
+                    } catch (error) {
+                        alert('Invalid JSON file. Please make sure you selected a valid backup file.');
+                    }
+                };
+                reader.readAsText(file);
+            }
+        };
+
+        document.getElementById('import-modal').onclick = (e) => {
+            if (e.target.id === 'import-modal') {
+                document.getElementById('import-modal').classList.remove('active');
+            }
+        };
     }
 
     showHabitModal() {
@@ -837,9 +947,41 @@ class HabitTrackerApp {
         document.getElementById('habit-name').focus();
     }
 
-    showTrackingModal() {
-        document.getElementById('tracking-modal').classList.add('active');
-        document.getElementById('tracking-name').focus();
+    showTrackingModal(fieldId = null) {
+        const modal = document.getElementById('tracking-modal');
+        const form = document.getElementById('tracking-form');
+        const title = document.getElementById('tracking-modal-title');
+        const nameInput = document.getElementById('tracking-name');
+        const typeInput = document.getElementById('tracking-type');
+        const unitInput = document.getElementById('tracking-unit');
+        const unitGroup = document.getElementById('unit-group');
+        
+        if (fieldId) {
+            // Edit mode
+            const field = this.dataManager.data.trackingFields.find(f => f.id === fieldId);
+            if (field) {
+                title.textContent = 'Edit Tracking Field';
+                nameInput.value = field.name;
+                typeInput.value = field.type;
+                unitInput.value = field.unit || '';
+                unitGroup.style.display = (field.type === 'number') ? 'block' : 'none';
+                form.dataset.editingId = fieldId;
+            }
+        } else {
+            // Add mode
+            title.textContent = 'Add Tracking Field';
+            form.reset();
+            unitGroup.style.display = 'none';
+            delete form.dataset.editingId;
+        }
+        
+        modal.classList.add('active');
+        nameInput.focus();
+    }
+
+    showImportModal() {
+        document.getElementById('import-modal').classList.add('active');
+        document.getElementById('import-file').focus();
     }
 
     exportData() {

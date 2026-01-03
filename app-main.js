@@ -952,9 +952,11 @@ class HabitTrackerApp {
             const date = new Date(this.calendarMonth.getFullYear(), this.calendarMonth.getMonth(), day);
             const status = this.dataManager.getDayStatus(date);
             const isToday = date.toDateString() === today.toDateString();
+            const events = this.dataManager.getEventsForDate(date);
+            const hasEvents = events.length > 0;
             
             html += `
-                <div class="calendar-day ${status} ${isToday ? 'current' : ''}" data-date="${this.dataManager.formatDate(date)}">
+                <div class="calendar-day ${status} ${isToday ? 'current' : ''} ${hasEvents ? 'has-events' : ''}" data-date="${this.dataManager.formatDate(date)}">
                     ${day}
                 </div>
             `;
@@ -995,6 +997,33 @@ class HabitTrackerApp {
         const status = this.dataManager.getDayStatus(date);
 
         let html = `<div class="day-status"><div class="status-indicator ${status}"></div></div>`;
+
+        // Events
+        const events = this.dataManager.getEventsForDate(date);
+        if (events.length > 0) {
+            html += '<h3>Events</h3>';
+            html += '<div class="events-list">';
+            events.sort((a, b) => a.startTime.localeCompare(b.startTime));
+            events.forEach(event => {
+                const durationDisplay = event.duration === -1 ? 'All day' : 
+                    event.duration >= 60 ? `${Math.floor(event.duration / 60)}h ${event.duration % 60 > 0 ? event.duration % 60 + 'm' : ''}`.trim() :
+                    `${event.duration}m`;
+                const timeDisplay = event.duration === -1 ? 'All day' : event.startTime;
+                
+                html += `
+                    <div class="event-item">
+                        <div class="event-time">${timeDisplay}</div>
+                        <div class="event-info">
+                            <span class="event-name">${event.name}</span>
+                            ${event.description ? `<span class="event-description">${event.description}</span>` : ''}
+                            <div class="event-duration">${durationDisplay}</div>
+                            ${event.isRecurring ? '<span class="event-recurring-badge">🔄 Recurring</span>' : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+        }
 
         // Habits - only show non-archived habits
         html += '<h3>Habits</h3>';
@@ -1599,6 +1628,11 @@ class HabitTrackerApp {
             document.getElementById('event-modal').classList.remove('active');
         };
 
+        // Use template button
+        document.getElementById('use-template-btn').onclick = () => {
+            this.showTemplatePicker();
+        };
+
         document.getElementById('event-is-recurring').onchange = (e) => {
             const recurrenceFields = document.getElementById('recurrence-fields');
             recurrenceFields.style.display = e.target.checked ? 'block' : 'none';
@@ -2046,6 +2080,58 @@ class HabitTrackerApp {
         document.getElementById('template-modal').classList.remove('active');
         form.reset();
         this.renderSettingsView();
+    }
+
+    showTemplatePicker() {
+        const modal = document.getElementById('template-picker-modal');
+        const list = document.getElementById('template-picker-list');
+        
+        if (this.dataManager.data.templates.length === 0) {
+            list.innerHTML = '<div class="empty-state"><p>No templates available. Create one in Settings.</p></div>';
+        } else {
+            list.innerHTML = this.dataManager.data.templates.map(template => {
+                const durationDisplay = template.duration === -1 ? 'All day' : 
+                    template.duration >= 60 ? `${Math.floor(template.duration / 60)} hr ${template.duration % 60 > 0 ? template.duration % 60 + ' min' : ''}`.trim() :
+                    `${template.duration} min`;
+                
+                return `
+                    <div class="template-item" data-template-id="${template.id}">
+                        <div class="template-name">${template.name}</div>
+                        ${template.description ? `<div class="template-description">${template.description}</div>` : ''}
+                        <div class="template-duration">Duration: ${durationDisplay}</div>
+                    </div>
+                `;
+            }).join('');
+            
+            // Add click handlers
+            list.querySelectorAll('.template-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const templateId = item.dataset.templateId;
+                    this.applyTemplate(templateId);
+                });
+            });
+        }
+        
+        modal.classList.add('active');
+    }
+
+    applyTemplate(templateId) {
+        const template = this.dataManager.data.templates.find(t => t.id === templateId);
+        if (template) {
+            document.getElementById('event-name').value = template.name;
+            document.getElementById('event-description').value = template.description || '';
+            document.getElementById('event-duration').value = template.duration === -1 ? '' : template.duration;
+            
+            // Highlight the active preset button
+            const duration = template.duration;
+            document.querySelectorAll('#event-form .preset-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.duration) === duration);
+            });
+            
+            this.updateEventEndTime();
+        }
+        
+        document.getElementById('template-picker-modal').classList.remove('active');
     }
 
     async clearData() {

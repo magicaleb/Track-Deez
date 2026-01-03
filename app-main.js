@@ -462,7 +462,7 @@ class PlannerManager {
     // Event CRUD operations
     async addEvent(date, startTime, endTime, title, category = 'other', notes = '') {
         const event = {
-            id: Date.now().toString(),
+            id: crypto.randomUUID(),
             date: this.formatDate(date),
             startTime,
             endTime,
@@ -511,6 +511,13 @@ class PlannerManager {
         return d.toISOString().split('T')[0];
     }
 
+    // Time formatting utility
+    formatTime12h(hours, minutes) {
+        const hour12 = hours % 12 || 12;
+        const ampm = hours < 12 ? 'AM' : 'PM';
+        return `${hour12}:${String(minutes).padStart(2, '0')} ${ampm}`;
+    }
+
     // Time utilities
     timeToMinutes(timeStr) {
         const [hours, minutes] = timeStr.split(':').map(Number);
@@ -546,7 +553,7 @@ class PlannerManager {
             minutes,
             totalMinutes,
             percentage,
-            timeString: `${String(hours % 12 || 12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'}`
+            timeString: this.formatTime12h(hours, minutes)
         };
     }
 
@@ -1027,14 +1034,10 @@ class HabitTrackerApp {
     }
 
     formatTimeRange(startTime, endTime) {
-        const formatTime = (time) => {
-            const [hours, minutes] = time.split(':').map(Number);
-            const hour12 = hours % 12 || 12;
-            const ampm = hours < 12 ? 'AM' : 'PM';
-            return `${hour12}:${String(minutes).padStart(2, '0')} ${ampm}`;
-        };
+        const [startHours, startMinutes] = startTime.split(':').map(Number);
+        const [endHours, endMinutes] = endTime.split(':').map(Number);
         
-        return `${formatTime(startTime)} - ${formatTime(endTime)}`;
+        return `${this.plannerManager.formatTime12h(startHours, startMinutes)} - ${this.plannerManager.formatTime12h(endHours, endMinutes)}`;
     }
 
     setupCurrentTimeIndicator() {
@@ -1104,9 +1107,9 @@ class HabitTrackerApp {
             if (defaultStartTime) {
                 document.getElementById('event-start-time').value = defaultStartTime;
                 
-                // Calculate end time (1 hour later)
+                // Calculate end time (1 hour later, but not beyond 23:00)
                 const [hours, minutes] = defaultStartTime.split(':').map(Number);
-                const endHours = (hours + 1) % 24;
+                const endHours = Math.min(hours + 1, 23);
                 document.getElementById('event-end-time').value = 
                     `${String(endHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
             }

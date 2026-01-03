@@ -164,27 +164,65 @@ class DataManager {
     }
 
     // Habits
-    async addHabit(name, description = '') {
+    async addHabit(name, description = '', isBuildUpHabit = false, buildUpConfig = null) {
         const habit = {
             id: Date.now().toString(),
             name,
             description,
             archived: false,
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            isBuildUpHabit: isBuildUpHabit || false
         };
+        
+        // Add build-up configuration if this is a build-up habit
+        if (isBuildUpHabit && buildUpConfig) {
+            habit.buildUpConfig = {
+                startValue: buildUpConfig.startValue,
+                goalValue: buildUpConfig.goalValue,
+                incrementValue: buildUpConfig.incrementValue,
+                daysForIncrement: buildUpConfig.daysForIncrement,
+                unit: buildUpConfig.unit || '',
+                currentValue: buildUpConfig.currentValue || buildUpConfig.startValue,
+                currentStreak: buildUpConfig.currentStreak || 0
+            };
+        }
+        
         this.data.habits.push(habit);
         await this.saveData();
         return habit;
     }
 
-    async updateHabit(id, name, description = '') {
+    async updateHabit(id, name, description = '', isBuildUpHabit = false, buildUpConfig = null) {
         const habitIndex = this.data.habits.findIndex(h => h.id === id);
         if (habitIndex !== -1) {
+            const existingHabit = this.data.habits[habitIndex];
             this.data.habits[habitIndex] = {
-                ...this.data.habits[habitIndex],
+                ...existingHabit,
                 name,
-                description
+                description,
+                isBuildUpHabit: isBuildUpHabit || false
             };
+            
+            // Update build-up configuration if provided
+            if (isBuildUpHabit && buildUpConfig) {
+                // Preserve current progress if it exists
+                const currentValue = existingHabit.buildUpConfig?.currentValue || buildUpConfig.startValue;
+                const currentStreak = existingHabit.buildUpConfig?.currentStreak || 0;
+                
+                this.data.habits[habitIndex].buildUpConfig = {
+                    startValue: buildUpConfig.startValue,
+                    goalValue: buildUpConfig.goalValue,
+                    incrementValue: buildUpConfig.incrementValue,
+                    daysForIncrement: buildUpConfig.daysForIncrement,
+                    unit: buildUpConfig.unit || '',
+                    currentValue: currentValue,
+                    currentStreak: currentStreak
+                };
+            } else if (!isBuildUpHabit) {
+                // Remove build-up config if habit is no longer a build-up habit
+                delete this.data.habits[habitIndex].buildUpConfig;
+            }
+            
             await this.saveData();
             return this.data.habits[habitIndex];
         }
@@ -262,6 +300,38 @@ class DataManager {
     async setHabitComplete(date, habitId, completed) {
         const dateStr = this.formatDate(date);
         const dayData = this.getDayData(date);
+        
+        // Check if it's a build-up habit
+        const habit = this.data.habits.find(h => h.id === habitId);
+        if (habit && habit.isBuildUpHabit && habit.buildUpConfig) {
+            const config = habit.buildUpConfig;
+            
+            if (completed) {
+                // Increment streak
+                config.currentStreak = (config.currentStreak || 0) + 1;
+                
+                // Check if we've reached the threshold for increment
+                if (config.currentStreak >= config.daysForIncrement) {
+                    // Increase current value, but not exceeding goal
+                    config.currentValue = Math.min(
+                        config.currentValue + config.incrementValue,
+                        config.goalValue
+                    );
+                    // Reset streak
+                    config.currentStreak = 0;
+                }
+            } else {
+                // Reset streak when unchecking
+                config.currentStreak = 0;
+            }
+            
+            // Update the habit in the data structure
+            const habitIndex = this.data.habits.findIndex(h => h.id === habitId);
+            if (habitIndex !== -1) {
+                this.data.habits[habitIndex].buildUpConfig = config;
+            }
+        }
+        
         dayData.habits[habitId] = completed;
         await this.saveData();
     }
@@ -435,17 +505,32 @@ class HabitTrackerApp {
             const dayData = this.dataManager.getDayData(this.currentDate);
             habitsList.innerHTML = habits.map(habit => {
                 const completed = dayData.habits[habit.id] || false;
+                
+                // Build habit name with build-up info if applicable
+                let habitName = habit.name;
+                let habitDescription = habit.description || '';
+                
+                if (habit.isBuildUpHabit && habit.buildUpConfig) {
+                    const config = habit.buildUpConfig;
+                    habitName += ` (Current Goal: ${config.currentValue}${config.unit ? ' ' + config.unit : ''})`;
+                    
+                    // Add progress info to description
+                    const progressInfo = `${config.currentValue}/${config.goalValue}${config.unit ? ' ' + config.unit : ''} - ${config.currentStreak}/${config.daysForIncrement} days toward next increase`;
+                    habitDescription = habitDescription ? `${habitDescription}<br><small>${progressInfo}</small>` : `<small>${progressInfo}</small>`;
+                }
+                
                 return `
-                    <div class="habit-item ${completed ? 'completed' : ''}" data-habit-id="${habit.id}">
+                    <div class="habit-item ${completed ? 'completed' : ''} ${habit.isBuildUpHabit ? 'build-up-habit' : ''}" data-habit-id="${habit.id}">
                         <div class="habit-checkbox ${completed ? 'checked' : ''}">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                 <polyline points="20 6 9 17 4 12"/>
                             </svg>
                         </div>
                         <div class="habit-info">
-                            <span class="habit-name">${habit.name}</span>
-                            ${habit.description ? `<span class="habit-description">${habit.description}</span>` : ''}
+                            <span class="habit-name">${habitName}</span>
+                            ${habitDescription ? `<span class="habit-description">${habitDescription}</span>` : ''}
                         </div>
+                        ${habit.isBuildUpHabit ? '<span class="build-up-badge">📈</span>' : ''}
                     </div>
                 `;
             }).join('');
@@ -598,17 +683,28 @@ class HabitTrackerApp {
             html += '<div class="habits-list">';
             activeHabits.forEach(habit => {
                 const completed = dayData.habits[habit.id] || false;
+                
+                // Build habit name with build-up info if applicable
+                let habitName = habit.name;
+                let habitDescription = habit.description || '';
+                
+                if (habit.isBuildUpHabit && habit.buildUpConfig) {
+                    const config = habit.buildUpConfig;
+                    habitName += ` (Current Goal: ${config.currentValue}${config.unit ? ' ' + config.unit : ''})`;
+                }
+                
                 html += `
-                    <div class="habit-item ${completed ? 'completed' : ''}">
+                    <div class="habit-item ${completed ? 'completed' : ''} ${habit.isBuildUpHabit ? 'build-up-habit' : ''}">
                         <div class="habit-checkbox ${completed ? 'checked' : ''}">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                 <polyline points="20 6 9 17 4 12"/>
                             </svg>
                         </div>
                         <div class="habit-info">
-                            <span class="habit-name">${habit.name}</span>
-                            ${habit.description ? `<span class="habit-description">${habit.description}</span>` : ''}
+                            <span class="habit-name">${habitName}</span>
+                            ${habitDescription ? `<span class="habit-description">${habitDescription}</span>` : ''}
                         </div>
+                        ${habit.isBuildUpHabit ? '<span class="build-up-badge">📈</span>' : ''}
                     </div>
                 `;
             });
@@ -781,29 +877,42 @@ class HabitTrackerApp {
             // Active habits
             if (activeHabits.length > 0) {
                 habitsHtml += '<div class="subsection-label">Active Habits</div>';
-                habitsHtml += activeHabits.map(habit => `
-                    <div class="setting-item">
-                        <div class="setting-info">
-                            <div class="setting-name">${habit.name}</div>
-                            ${habit.description ? `<div class="setting-detail">${habit.description}</div>` : ''}
+                habitsHtml += activeHabits.map(habit => {
+                    let progressInfo = '';
+                    if (habit.isBuildUpHabit && habit.buildUpConfig) {
+                        const config = habit.buildUpConfig;
+                        progressInfo = `<div class="setting-detail">
+                            <span class="build-up-badge">📈 Build-Up Habit</span> 
+                            ${config.currentValue}/${config.goalValue}${config.unit ? ' ' + config.unit : ''} 
+                            (Streak: ${config.currentStreak}/${config.daysForIncrement})
+                        </div>`;
+                    }
+                    
+                    return `
+                        <div class="setting-item ${habit.isBuildUpHabit ? 'build-up-habit' : ''}">
+                            <div class="setting-info">
+                                <div class="setting-name">${habit.name}</div>
+                                ${habit.description ? `<div class="setting-detail">${habit.description}</div>` : ''}
+                                ${progressInfo}
+                            </div>
+                            <div class="setting-actions">
+                                <button class="btn-icon edit" data-habit-id="${habit.id}">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                                        <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                    </svg>
+                                </button>
+                                <button class="btn-icon archive" data-habit-id="${habit.id}">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="21 8 21 21 3 21 3 8"/>
+                                        <rect x="1" y="3" width="22" height="5"/>
+                                        <line x1="10" y1="12" x2="14" y2="12"/>
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
-                        <div class="setting-actions">
-                            <button class="btn-icon edit" data-habit-id="${habit.id}">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                                </svg>
-                            </button>
-                            <button class="btn-icon archive" data-habit-id="${habit.id}">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polyline points="21 8 21 21 3 21 3 8"/>
-                                    <rect x="1" y="3" width="22" height="5"/>
-                                    <line x1="10" y1="12" x2="14" y2="12"/>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-                `).join('');
+                    `;
+                }).join('');
             }
             
             // Archived habits
@@ -949,21 +1058,53 @@ class HabitTrackerApp {
         document.getElementById('cancel-habit').onclick = () => {
             document.getElementById('habit-modal').classList.remove('active');
         };
+        
+        // Build-up habit checkbox toggle
+        document.getElementById('is-build-up-habit').onchange = (e) => {
+            const buildUpFields = document.getElementById('build-up-fields');
+            buildUpFields.style.display = e.target.checked ? 'block' : 'none';
+        };
 
         document.getElementById('habit-form').onsubmit = async (e) => {
             e.preventDefault();
             const name = document.getElementById('habit-name').value.trim();
             const description = document.getElementById('habit-description').value.trim();
+            const isBuildUpHabit = document.getElementById('is-build-up-habit').checked;
+            
+            let buildUpConfig = null;
+            if (isBuildUpHabit) {
+                const startValue = parseFloat(document.getElementById('build-up-start-value').value);
+                const goalValue = parseFloat(document.getElementById('build-up-goal-value').value);
+                const incrementValue = parseFloat(document.getElementById('build-up-increment-value').value);
+                const daysForIncrement = parseInt(document.getElementById('build-up-days-for-increment').value);
+                const unit = document.getElementById('build-up-unit').value.trim();
+                
+                // Validation
+                if (goalValue <= startValue) {
+                    alert('Goal Value must be greater than Starting Value');
+                    return;
+                }
+                
+                buildUpConfig = {
+                    startValue,
+                    goalValue,
+                    incrementValue,
+                    daysForIncrement,
+                    unit
+                };
+            }
+            
             if (name) {
                 const editingId = document.getElementById('habit-form').dataset.editingId;
                 if (editingId) {
-                    await this.dataManager.updateHabit(editingId, name, description);
+                    await this.dataManager.updateHabit(editingId, name, description, isBuildUpHabit, buildUpConfig);
                     delete document.getElementById('habit-form').dataset.editingId;
                 } else {
-                    await this.dataManager.addHabit(name, description);
+                    await this.dataManager.addHabit(name, description, isBuildUpHabit, buildUpConfig);
                 }
                 document.getElementById('habit-modal').classList.remove('active');
                 document.getElementById('habit-form').reset();
+                document.getElementById('build-up-fields').style.display = 'none';
                 this.renderSettingsView();
                 this.renderTodayView();
             }
@@ -1071,6 +1212,8 @@ class HabitTrackerApp {
         const title = document.getElementById('habit-modal-title');
         const nameInput = document.getElementById('habit-name');
         const descriptionInput = document.getElementById('habit-description');
+        const isBuildUpCheckbox = document.getElementById('is-build-up-habit');
+        const buildUpFields = document.getElementById('build-up-fields');
         
         if (habitId) {
             // Edit mode
@@ -1080,12 +1223,26 @@ class HabitTrackerApp {
                 nameInput.value = habit.name;
                 descriptionInput.value = habit.description || '';
                 form.dataset.editingId = habitId;
+                
+                // Populate build-up fields if applicable
+                isBuildUpCheckbox.checked = habit.isBuildUpHabit || false;
+                if (habit.isBuildUpHabit && habit.buildUpConfig) {
+                    buildUpFields.style.display = 'block';
+                    document.getElementById('build-up-start-value').value = habit.buildUpConfig.startValue;
+                    document.getElementById('build-up-goal-value').value = habit.buildUpConfig.goalValue;
+                    document.getElementById('build-up-increment-value').value = habit.buildUpConfig.incrementValue;
+                    document.getElementById('build-up-days-for-increment').value = habit.buildUpConfig.daysForIncrement;
+                    document.getElementById('build-up-unit').value = habit.buildUpConfig.unit || '';
+                } else {
+                    buildUpFields.style.display = 'none';
+                }
             }
         } else {
             // Add mode
             title.textContent = 'Add Habit';
             form.reset();
             delete form.dataset.editingId;
+            buildUpFields.style.display = 'none';
         }
         
         modal.classList.add('active');

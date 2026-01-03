@@ -246,6 +246,37 @@
                             <label for="habit-description">Description (optional)</label>
                             <textarea id="habit-description" rows="3" placeholder="Add context about this habit..."></textarea>
                         </div>
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="is-build-up-habit">
+                                <span>Build Up Habit</span>
+                            </label>
+                            <small style="color: #6b7280; display: block; margin-top: 0.25rem;">
+                                Progressively increase difficulty over time based on successful completions
+                            </small>
+                        </div>
+                        <div id="build-up-fields" style="display: none;">
+                            <div class="form-group">
+                                <label for="build-up-start-value">Starting Value</label>
+                                <input type="number" id="build-up-start-value" step="any" placeholder="e.g., 5">
+                            </div>
+                            <div class="form-group">
+                                <label for="build-up-goal-value">Goal Value</label>
+                                <input type="number" id="build-up-goal-value" step="any" placeholder="e.g., 50">
+                            </div>
+                            <div class="form-group">
+                                <label for="build-up-increment-value">Increment By</label>
+                                <input type="number" id="build-up-increment-value" step="any" placeholder="e.g., 5">
+                            </div>
+                            <div class="form-group">
+                                <label for="build-up-days-for-increment">Days Per Increment</label>
+                                <input type="number" id="build-up-days-for-increment" value="3" placeholder="e.g., 3">
+                            </div>
+                            <div class="form-group">
+                                <label for="build-up-unit">Unit (optional)</label>
+                                <input type="text" id="build-up-unit" placeholder="e.g., reps, minutes, hours">
+                            </div>
+                        </div>
                         <div class="form-actions">
                             <button type="button" class="btn-secondary" id="cancel-habit">Cancel</button>
                             <button type="submit" class="btn-primary">Save</button>

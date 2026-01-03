@@ -1018,7 +1018,7 @@ button, .habit-item, .calendar-day {
 }
 
 .grid-slot {
-    height: 60px;
+    height: 30px;
     border-bottom: 1px solid var(--border);
     cursor: pointer;
     transition: background 0.2s;

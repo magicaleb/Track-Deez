@@ -508,7 +508,10 @@ class PlannerManager {
 
     formatDate(date) {
         const d = new Date(date);
-        return d.toISOString().split('T')[0];
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     }
 
     // Time formatting utility
@@ -646,6 +649,14 @@ class HabitTrackerApp {
     }
 
     switchView(view) {
+        // Clear planner interval when leaving planner view
+        if (this.currentView === 'planner' && view !== 'planner') {
+            if (this.plannerManager && this.plannerManager.timeUpdateInterval) {
+                clearInterval(this.plannerManager.timeUpdateInterval);
+                this.plannerManager.timeUpdateInterval = null;
+            }
+        }
+        
         // Update nav buttons
         document.querySelectorAll('.nav-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.view === view);
@@ -937,21 +948,25 @@ class HabitTrackerApp {
         // Setup current time indicator
         this.setupCurrentTimeIndicator();
 
-        // Setup navigation
-        document.getElementById('planner-prev-day').onclick = () => {
-            this.plannerManager.currentDate.setDate(this.plannerManager.currentDate.getDate() - 1);
-            this.renderPlannerView();
-        };
+        // Setup navigation buttons (only once)
+        if (!this._plannerNavSetup) {
+            document.getElementById('planner-prev-day').onclick = () => {
+                this.plannerManager.currentDate.setDate(this.plannerManager.currentDate.getDate() - 1);
+                this.renderPlannerView();
+            };
 
-        document.getElementById('planner-next-day').onclick = () => {
-            this.plannerManager.currentDate.setDate(this.plannerManager.currentDate.getDate() + 1);
-            this.renderPlannerView();
-        };
+            document.getElementById('planner-next-day').onclick = () => {
+                this.plannerManager.currentDate.setDate(this.plannerManager.currentDate.getDate() + 1);
+                this.renderPlannerView();
+            };
 
-        document.getElementById('planner-today').onclick = () => {
-            this.plannerManager.currentDate = new Date();
-            this.renderPlannerView();
-        };
+            document.getElementById('planner-today').onclick = () => {
+                this.plannerManager.currentDate = new Date();
+                this.renderPlannerView();
+            };
+            
+            this._plannerNavSetup = true;
+        }
     }
 
     renderTimeColumn() {
@@ -984,25 +999,33 @@ class HabitTrackerApp {
         
         grid.innerHTML = html;
 
-        // Add click handlers for quick add
-        grid.querySelectorAll('.grid-slot').forEach(slot => {
-            slot.addEventListener('click', () => {
+        // Use event delegation for click handlers
+        if (!this._plannerGridClickDelegated) {
+            grid.addEventListener('click', (evt) => {
+                const slot = evt.target.closest('.grid-slot');
+                if (!slot || !grid.contains(slot)) {
+                    return;
+                }
                 const startTime = slot.dataset.time;
                 this.showPlannerEventModal(null, startTime);
             });
-        });
+            this._plannerGridClickDelegated = true;
+        }
     }
 
     renderPlannerEvents() {
         const eventsContainer = document.getElementById('planner-events');
         const events = this.plannerManager.getEventsForDate(this.plannerManager.currentDate);
         
+        // Clear existing events
+        eventsContainer.innerHTML = '';
+        
         if (events.length === 0) {
-            eventsContainer.innerHTML = '';
             return;
         }
         
-        const html = events.map(event => {
+        // Safely render events without injecting unescaped HTML
+        events.forEach(event => {
             const position = this.plannerManager.getEventPosition(event);
             const isCurrent = this.plannerManager.isEventCurrent(event);
             const isPast = this.plannerManager.isEventPast(event);
@@ -1011,26 +1034,44 @@ class HabitTrackerApp {
             if (isCurrent) statusClass = 'current';
             else if (isPast) statusClass = 'past';
             
-            return `
-                <div class="planner-event category-${event.category} ${statusClass}" 
-                     data-event-id="${event.id}"
-                     style="top: ${position.top}%; height: ${position.height}%;">
-                    <div class="event-title">${event.title}</div>
-                    <div class="event-time">${this.formatTimeRange(event.startTime, event.endTime)}</div>
-                    ${event.notes ? `<div class="event-notes">${event.notes}</div>` : ''}
-                </div>
-            `;
-        }).join('');
-        
-        eventsContainer.innerHTML = html;
+            const eventEl = document.createElement('div');
+            eventEl.className = `planner-event category-${event.category} ${statusClass}`;
+            eventEl.dataset.eventId = event.id;
+            eventEl.style.top = `${position.top}%`;
+            eventEl.style.height = `${position.height}%`;
+            
+            const titleEl = document.createElement('div');
+            titleEl.className = 'event-title';
+            titleEl.textContent = event.title;
+            eventEl.appendChild(titleEl);
+            
+            const timeEl = document.createElement('div');
+            timeEl.className = 'event-time';
+            timeEl.textContent = this.formatTimeRange(event.startTime, event.endTime);
+            eventEl.appendChild(timeEl);
+            
+            if (event.notes) {
+                const notesEl = document.createElement('div');
+                notesEl.className = 'event-notes';
+                notesEl.textContent = event.notes;
+                eventEl.appendChild(notesEl);
+            }
+            
+            eventsContainer.appendChild(eventEl);
+        });
 
-        // Add click handlers for editing
-        eventsContainer.querySelectorAll('.planner-event').forEach(eventEl => {
-            eventEl.addEventListener('click', () => {
+        // Use event delegation: attach a single click handler to the container
+        if (!this._plannerEventsClickDelegated) {
+            eventsContainer.addEventListener('click', (evt) => {
+                const eventEl = evt.target.closest('.planner-event');
+                if (!eventEl || !eventsContainer.contains(eventEl)) {
+                    return;
+                }
                 const eventId = eventEl.dataset.eventId;
                 this.showPlannerEventModal(eventId);
             });
-        });
+            this._plannerEventsClickDelegated = true;
+        }
     }
 
     formatTimeRange(startTime, endTime) {
@@ -1107,11 +1148,30 @@ class HabitTrackerApp {
             if (defaultStartTime) {
                 document.getElementById('event-start-time').value = defaultStartTime;
                 
-                // Calculate end time (1 hour later, but not beyond 23:00)
+                // Calculate end time (1 hour later, but not beyond 23:00, and strictly after start)
                 const [hours, minutes] = defaultStartTime.split(':').map(Number);
-                const endHours = Math.min(hours + 1, 23);
-                document.getElementById('event-end-time').value = 
-                    `${String(endHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+                const startTotalMinutes = hours * 60 + minutes;
+                const maxEndMinutes = 23 * 60; // 23:00 is the latest allowed end time
+                
+                if (startTotalMinutes < maxEndMinutes) {
+                    let endTotalMinutes = startTotalMinutes + 60;
+                    if (endTotalMinutes > maxEndMinutes) {
+                        endTotalMinutes = maxEndMinutes;
+                    }
+                    
+                    if (endTotalMinutes > startTotalMinutes) {
+                        const endHours = Math.floor(endTotalMinutes / 60);
+                        const endMinutes = endTotalMinutes % 60;
+                        document.getElementById('event-end-time').value =
+                            `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+                    } else {
+                        // If we can't compute a valid end time, leave it blank for the user to set.
+                        document.getElementById('event-end-time').value = '';
+                    }
+                } else {
+                    // Start time is at or after the maximum end time; don't set a default end time.
+                    document.getElementById('event-end-time').value = '';
+                }
             }
         }
         
@@ -1628,8 +1688,11 @@ class HabitTrackerApp {
             const category = document.getElementById('event-category').value;
             const notes = document.getElementById('event-notes').value.trim();
             
-            // Validate times
-            if (startTime >= endTime) {
+            // Validate times using numeric comparison
+            const startMinutes = this.plannerManager.timeToMinutes(startTime);
+            const endMinutes = this.plannerManager.timeToMinutes(endTime);
+            
+            if (startMinutes >= endMinutes) {
                 alert('End time must be after start time');
                 return;
             }

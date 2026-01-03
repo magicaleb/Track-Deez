@@ -461,10 +461,11 @@ class DataManager {
                         const dayOfWeek = checkDate.getDay();
                         if (recurrence.daysOfWeek.includes(dayOfWeek)) {
                             if (recurrence.occurrences) {
-                                // Count occurrences up to this date
+                                // Count occurrences up to this date without recursion
                                 let count = 0;
                                 for (let d = new Date(eventStartDate); d <= checkDate; d.setDate(d.getDate() + 1)) {
-                                    if (this.eventOccursOnDate({ ...event, recurrence: { ...recurrence, occurrences: null } }, d)) {
+                                    const dWeeksDiff = Math.floor((d - eventStartDate) / (1000 * 60 * 60 * 24 * 7));
+                                    if (dWeeksDiff % recurrence.interval === 0 && recurrence.daysOfWeek.includes(d.getDay())) {
                                         count++;
                                     }
                                 }
@@ -491,14 +492,33 @@ class DataManager {
                             return true;
                         }
                     } else if (recurrence.monthlyPattern) {
-                        // Pattern like "2nd Tuesday"
+                        // Pattern like "2nd Tuesday" or "last Friday"
                         const pattern = recurrence.monthlyPattern;
-                        const firstDayOfMonth = new Date(checkDate.getFullYear(), checkDate.getMonth(), 1);
-                        const firstDayOfWeek = firstDayOfMonth.getDay();
+                        let targetDate;
                         
-                        // Calculate the date of the Nth occurrence of the target day
-                        const daysUntilTarget = (pattern.dayOfWeek - firstDayOfWeek + 7) % 7;
-                        const targetDate = 1 + daysUntilTarget + (pattern.week - 1) * 7;
+                        if (pattern.week === -1) {
+                            // Last occurrence of the day in the month
+                            const lastDayOfMonth = new Date(checkDate.getFullYear(), checkDate.getMonth() + 1, 0);
+                            let lastOccurrence = lastDayOfMonth.getDate();
+                            
+                            // Walk backward to find the last occurrence of the target day
+                            while (new Date(checkDate.getFullYear(), checkDate.getMonth(), lastOccurrence).getDay() !== pattern.dayOfWeek) {
+                                lastOccurrence--;
+                            }
+                            targetDate = lastOccurrence;
+                        } else {
+                            // Nth occurrence of the day
+                            const firstDayOfMonth = new Date(checkDate.getFullYear(), checkDate.getMonth(), 1);
+                            const firstDayOfWeek = firstDayOfMonth.getDay();
+                            const daysUntilTarget = (pattern.dayOfWeek - firstDayOfWeek + 7) % 7;
+                            targetDate = 1 + daysUntilTarget + (pattern.week - 1) * 7;
+                            
+                            // Validate that the date exists in this month
+                            const testDate = new Date(checkDate.getFullYear(), checkDate.getMonth(), targetDate);
+                            if (testDate.getMonth() !== checkDate.getMonth()) {
+                                return false; // Date doesn't exist in this month
+                            }
+                        }
                         
                         if (checkDate.getDate() === targetDate) {
                             if (recurrence.occurrences) {
@@ -677,9 +697,9 @@ class DataManager {
 
             // Merge templates if present
             if (importedData.templates && Array.isArray(importedData.templates)) {
-                const existingTemplateNames = new Set(this.data.templates.map(t => t.name));
+                const existingTemplateIds = new Set(this.data.templates.map(t => t.id));
                 importedData.templates.forEach(template => {
-                    if (!existingTemplateNames.has(template.name)) {
+                    if (!existingTemplateIds.has(template.id)) {
                         this.data.templates.push(template);
                     }
                 });

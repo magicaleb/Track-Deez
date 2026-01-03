@@ -251,6 +251,8 @@ class DataManager {
 
     getDayStatus(date) {
         // Check if date is in the future
+        // Future dates have no data yet, so they should be marked as gray
+        // This prevents the calendar from showing completion status for dates that haven't occurred
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const checkDate = new Date(date);
@@ -288,7 +290,8 @@ class DataManager {
                 throw new Error('Invalid data format');
             }
 
-            // Merge habits (avoid duplicates by name)
+            // Merge habits (avoid duplicates by name to prevent UI confusion)
+            // Note: This intentionally uses name matching to avoid duplicate visible entries
             const existingHabitNames = new Set(this.data.habits.map(h => h.name));
             importedData.habits.forEach(habit => {
                 if (!existingHabitNames.has(habit.name)) {
@@ -296,7 +299,8 @@ class DataManager {
                 }
             });
 
-            // Merge tracking fields (avoid duplicates by name)
+            // Merge tracking fields (avoid duplicates by name to prevent UI confusion)
+            // Note: This intentionally uses name matching to avoid duplicate visible entries
             const existingFieldNames = new Set(this.data.trackingFields.map(f => f.name));
             importedData.trackingFields.forEach(field => {
                 if (!existingFieldNames.has(field.name)) {

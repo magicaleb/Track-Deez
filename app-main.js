@@ -457,21 +457,6 @@ class HabitTrackerApp {
                     await this.dataManager.setTracking(this.currentDate, fieldId, e.target.value);
                 });
             });
-
-            trackingList.querySelectorAll('.scale-btn').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    const fieldId = btn.dataset.fieldId;
-                    const value = btn.dataset.value;
-                    
-                    // Update UI
-                    const parent = btn.parentElement;
-                    parent.querySelectorAll('.scale-btn').forEach(b => b.classList.remove('selected'));
-                    btn.classList.add('selected');
-                    
-                    // Save data
-                    await this.dataManager.setTracking(this.currentDate, fieldId, value);
-                });
-            });
         }
     }
 
@@ -491,22 +476,6 @@ class HabitTrackerApp {
                 return `<input type="text" class="tracking-input" data-field-id="${field.id}" value="${value}">`;
             case 'time':
                 return `<input type="time" class="tracking-input" data-field-id="${field.id}" value="${value}">`;
-            case 'scale':
-                return `
-                    <div class="scale-input">
-                        ${[1,2,3,4,5].map(n => 
-                            `<button class="scale-btn ${value == n ? 'selected' : ''}" data-field-id="${field.id}" data-value="${n}">${n}</button>`
-                        ).join('')}
-                    </div>
-                `;
-            case 'scale10':
-                return `
-                    <div class="scale-input">
-                        ${[1,2,3,4,5,6,7,8,9,10].map(n => 
-                            `<button class="scale-btn ${value == n ? 'selected' : ''}" data-field-id="${field.id}" data-value="${n}">${n}</button>`
-                        ).join('')}
-                    </div>
-                `;
             default:
                 return '';
         }

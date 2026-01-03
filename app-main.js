@@ -10,7 +10,8 @@ class DataManager {
         this.data = {
             habits: [],
             trackingFields: [],
-            days: {} // key: YYYY-MM-DD, value: { habits: {}, tracking: {} }
+            days: {}, // key: YYYY-MM-DD, value: { habits: {}, tracking: {} }
+            plannerEvents: [] // array of event objects
         };
         this.dbManager = new DBManager();
         this.useIndexedDB = false;
@@ -81,6 +82,12 @@ class DataManager {
                 console.log(`Migrated ${daysArray.length} days of data`);
             }
 
+            // Migrate planner events
+            if (data.plannerEvents && data.plannerEvents.length > 0) {
+                await this.dbManager.putAll('plannerEvents', data.plannerEvents);
+                console.log(`Migrated ${data.plannerEvents.length} planner events`);
+            }
+
             // Remove localStorage data after successful migration
             localStorage.removeItem('trackDeezData');
             console.log('Migration complete! localStorage data removed.');
@@ -93,7 +100,13 @@ class DataManager {
     loadDataFromLocalStorage() {
         const data = localStorage.getItem('trackDeezData');
         if (data) {
-            this.data = JSON.parse(data);
+            const parsedData = JSON.parse(data);
+            this.data = {
+                habits: parsedData.habits || [],
+                trackingFields: parsedData.trackingFields || [],
+                days: parsedData.days || {},
+                plannerEvents: parsedData.plannerEvents || []
+            };
         }
     }
 
@@ -122,6 +135,10 @@ class DataManager {
                 };
             });
 
+            // Load planner events
+            const plannerEvents = await this.dbManager.getAll('plannerEvents');
+            this.data.plannerEvents = plannerEvents || [];
+
             console.log('Data loaded from IndexedDB');
         } catch (error) {
             console.error('Error loading data from IndexedDB:', error);
@@ -129,7 +146,8 @@ class DataManager {
             this.data = {
                 habits: [],
                 trackingFields: [],
-                days: {}
+                days: {},
+                plannerEvents: []
             };
         }
     }
@@ -154,6 +172,9 @@ class DataManager {
                 tracking: this.data.days[date].tracking || {}
             }));
             await this.dbManager.putAll('days', daysArray);
+
+            // Save planner events
+            await this.dbManager.putAll('plannerEvents', this.data.plannerEvents);
 
             console.log('Data saved to IndexedDB');
         } catch (error) {
@@ -421,9 +442,172 @@ class DataManager {
         this.data = {
             habits: [],
             trackingFields: [],
-            days: {}
+            days: {},
+            plannerEvents: []
         };
         await this.saveData();
+    }
+}
+
+// Planner Management
+class PlannerManager {
+    constructor(dataManager) {
+        this.dataManager = dataManager;
+        this.currentDate = new Date();
+        this.timeUpdateInterval = null;
+        this.startHour = 6;  // 6 AM
+        this.endHour = 23;   // 11 PM
+    }
+
+    // Event CRUD operations
+    async addEvent(date, startTime, endTime, title, category = 'other', notes = '') {
+        const event = {
+            id: crypto.randomUUID(),
+            date: this.formatDate(date),
+            startTime,
+            endTime,
+            title,
+            category,
+            notes,
+            createdAt: new Date().toISOString()
+        };
+        this.dataManager.data.plannerEvents.push(event);
+        await this.dataManager.saveData();
+        return event;
+    }
+
+    async updateEvent(id, startTime, endTime, title, category = 'other', notes = '') {
+        const eventIndex = this.dataManager.data.plannerEvents.findIndex(e => e.id === id);
+        if (eventIndex !== -1) {
+            const existingEvent = this.dataManager.data.plannerEvents[eventIndex];
+            this.dataManager.data.plannerEvents[eventIndex] = {
+                ...existingEvent,
+                startTime,
+                endTime,
+                title,
+                category,
+                notes
+            };
+            await this.dataManager.saveData();
+            return this.dataManager.data.plannerEvents[eventIndex];
+        }
+        return null;
+    }
+
+    async deleteEvent(id) {
+        this.dataManager.data.plannerEvents = this.dataManager.data.plannerEvents.filter(e => e.id !== id);
+        await this.dataManager.saveData();
+    }
+
+    getEventsForDate(date) {
+        const dateStr = this.formatDate(date);
+        return this.dataManager.data.plannerEvents
+            .filter(e => e.date === dateStr)
+            .sort((a, b) => a.startTime.localeCompare(b.startTime));
+    }
+
+    formatDate(date) {
+        const d = new Date(date);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    // Time formatting utility
+    formatTime12h(hours, minutes) {
+        const hour12 = hours % 12 || 12;
+        const ampm = hours < 12 ? 'AM' : 'PM';
+        return `${hour12}:${String(minutes).padStart(2, '0')} ${ampm}`;
+    }
+
+    // Time utilities
+    timeToMinutes(timeStr) {
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        return hours * 60 + minutes;
+    }
+
+    minutesToTime(minutes) {
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+    }
+
+    getCurrentTimeInfo() {
+        const now = new Date();
+        const hours = now.getHours();
+        const minutes = now.getMinutes();
+        const totalMinutes = hours * 60 + minutes;
+        
+        // Calculate position relative to viewing window (startHour to endHour)
+        const startMinutes = this.startHour * 60;
+        const endMinutes = this.endHour * 60;
+        const viewRangeMinutes = endMinutes - startMinutes;
+        
+        if (totalMinutes < startMinutes || totalMinutes > endMinutes) {
+            return null; // Outside viewing hours
+        }
+        
+        const minutesFromStart = totalMinutes - startMinutes;
+        const percentage = (minutesFromStart / viewRangeMinutes) * 100;
+        
+        return {
+            hours,
+            minutes,
+            totalMinutes,
+            percentage,
+            timeString: this.formatTime12h(hours, minutes)
+        };
+    }
+
+    isEventCurrent(event) {
+        const now = new Date();
+        const today = this.formatDate(now);
+        
+        if (event.date !== today) {
+            return false;
+        }
+        
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        const eventStart = this.timeToMinutes(event.startTime);
+        const eventEnd = this.timeToMinutes(event.endTime);
+        
+        return currentMinutes >= eventStart && currentMinutes < eventEnd;
+    }
+
+    isEventPast(event) {
+        const now = new Date();
+        const today = this.formatDate(now);
+        
+        if (event.date < today) {
+            return true;
+        }
+        
+        if (event.date > today) {
+            return false;
+        }
+        
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        const eventEnd = this.timeToMinutes(event.endTime);
+        
+        return currentMinutes >= eventEnd;
+    }
+
+    getEventPosition(event) {
+        const startMinutes = this.timeToMinutes(event.startTime);
+        const endMinutes = this.timeToMinutes(event.endTime);
+        const duration = endMinutes - startMinutes;
+        
+        const viewStartMinutes = this.startHour * 60;
+        const viewRangeMinutes = (this.endHour - this.startHour) * 60;
+        
+        const topPercentage = ((startMinutes - viewStartMinutes) / viewRangeMinutes) * 100;
+        const heightPercentage = (duration / viewRangeMinutes) * 100;
+        
+        return {
+            top: topPercentage,
+            height: heightPercentage
+        };
     }
 }
 
@@ -431,6 +615,7 @@ class DataManager {
 class HabitTrackerApp {
     constructor() {
         this.dataManager = new DataManager();
+        this.plannerManager = new PlannerManager(this.dataManager);
         this.currentDate = new Date();
         this.currentView = 'today';
         this.calendarMonth = new Date();
@@ -447,6 +632,7 @@ class HabitTrackerApp {
         this.setupModals();
         this.renderTodayView();
         this.renderCalendarView();
+        this.renderPlannerView();
         this.renderStatsView();
         this.renderSettingsView();
         this.setupInstallPrompt();
@@ -463,6 +649,14 @@ class HabitTrackerApp {
     }
 
     switchView(view) {
+        // Clear planner interval when leaving planner view
+        if (this.currentView === 'planner' && view !== 'planner') {
+            if (this.plannerManager && this.plannerManager.timeUpdateInterval) {
+                clearInterval(this.plannerManager.timeUpdateInterval);
+                this.plannerManager.timeUpdateInterval = null;
+            }
+        }
+        
         // Update nav buttons
         document.querySelectorAll('.nav-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.view === view);
@@ -479,6 +673,7 @@ class HabitTrackerApp {
         // Refresh view
         if (view === 'today') this.renderTodayView();
         if (view === 'calendar') this.renderCalendarView();
+        if (view === 'planner') this.renderPlannerView();
         if (view === 'stats') this.renderStatsView();
         if (view === 'settings') this.renderSettingsView();
     }
@@ -732,6 +927,256 @@ class HabitTrackerApp {
 
         modalBody.innerHTML = html;
         modal.classList.add('active');
+    }
+
+    // Planner View
+    renderPlannerView() {
+        // Update date display
+        const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        document.getElementById('planner-date').textContent = 
+            this.plannerManager.currentDate.toLocaleDateString('en-US', dateOptions);
+
+        // Render time column
+        this.renderTimeColumn();
+
+        // Render grid
+        this.renderPlannerGrid();
+
+        // Render events
+        this.renderPlannerEvents();
+
+        // Setup current time indicator
+        this.setupCurrentTimeIndicator();
+
+        // Setup navigation buttons (only once)
+        if (!this._plannerNavSetup) {
+            document.getElementById('planner-prev-day').onclick = () => {
+                this.plannerManager.currentDate.setDate(this.plannerManager.currentDate.getDate() - 1);
+                this.renderPlannerView();
+            };
+
+            document.getElementById('planner-next-day').onclick = () => {
+                this.plannerManager.currentDate.setDate(this.plannerManager.currentDate.getDate() + 1);
+                this.renderPlannerView();
+            };
+
+            document.getElementById('planner-today').onclick = () => {
+                this.plannerManager.currentDate = new Date();
+                this.renderPlannerView();
+            };
+            
+            this._plannerNavSetup = true;
+        }
+    }
+
+    renderTimeColumn() {
+        const timeColumn = document.getElementById('time-column');
+        let html = '';
+        
+        for (let hour = this.plannerManager.startHour; hour <= this.plannerManager.endHour; hour++) {
+            const time12h = hour % 12 || 12;
+            const ampm = hour < 12 ? 'AM' : 'PM';
+            html += `<div class="time-slot">${time12h} ${ampm}</div>`;
+        }
+        
+        timeColumn.innerHTML = html;
+    }
+
+    renderPlannerGrid() {
+        const grid = document.getElementById('planner-grid');
+        let html = '';
+        
+        const totalSlots = (this.plannerManager.endHour - this.plannerManager.startHour + 1) * 2;
+        
+        for (let i = 0; i < totalSlots; i++) {
+            const hour = this.plannerManager.startHour + Math.floor(i / 2);
+            const minute = (i % 2) * 30;
+            const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+            const isHalfHour = i % 2 === 1;
+            
+            html += `<div class="grid-slot ${isHalfHour ? 'half-hour' : ''}" data-time="${timeStr}"></div>`;
+        }
+        
+        grid.innerHTML = html;
+
+        // Use event delegation for click handlers
+        if (!this._plannerGridClickDelegated) {
+            grid.addEventListener('click', (evt) => {
+                const slot = evt.target.closest('.grid-slot');
+                if (!slot || !grid.contains(slot)) {
+                    return;
+                }
+                const startTime = slot.dataset.time;
+                this.showPlannerEventModal(null, startTime);
+            });
+            this._plannerGridClickDelegated = true;
+        }
+    }
+
+    renderPlannerEvents() {
+        const eventsContainer = document.getElementById('planner-events');
+        const events = this.plannerManager.getEventsForDate(this.plannerManager.currentDate);
+        
+        // Clear existing events
+        eventsContainer.innerHTML = '';
+        
+        if (events.length === 0) {
+            return;
+        }
+        
+        // Safely render events without injecting unescaped HTML
+        events.forEach(event => {
+            const position = this.plannerManager.getEventPosition(event);
+            const isCurrent = this.plannerManager.isEventCurrent(event);
+            const isPast = this.plannerManager.isEventPast(event);
+            
+            let statusClass = '';
+            if (isCurrent) statusClass = 'current';
+            else if (isPast) statusClass = 'past';
+            
+            const eventEl = document.createElement('div');
+            eventEl.className = `planner-event category-${event.category} ${statusClass}`;
+            eventEl.dataset.eventId = event.id;
+            eventEl.style.top = `${position.top}%`;
+            eventEl.style.height = `${position.height}%`;
+            
+            const titleEl = document.createElement('div');
+            titleEl.className = 'event-title';
+            titleEl.textContent = event.title;
+            eventEl.appendChild(titleEl);
+            
+            const timeEl = document.createElement('div');
+            timeEl.className = 'event-time';
+            timeEl.textContent = this.formatTimeRange(event.startTime, event.endTime);
+            eventEl.appendChild(timeEl);
+            
+            if (event.notes) {
+                const notesEl = document.createElement('div');
+                notesEl.className = 'event-notes';
+                notesEl.textContent = event.notes;
+                eventEl.appendChild(notesEl);
+            }
+            
+            eventsContainer.appendChild(eventEl);
+        });
+
+        // Use event delegation: attach a single click handler to the container
+        if (!this._plannerEventsClickDelegated) {
+            eventsContainer.addEventListener('click', (evt) => {
+                const eventEl = evt.target.closest('.planner-event');
+                if (!eventEl || !eventsContainer.contains(eventEl)) {
+                    return;
+                }
+                const eventId = eventEl.dataset.eventId;
+                this.showPlannerEventModal(eventId);
+            });
+            this._plannerEventsClickDelegated = true;
+        }
+    }
+
+    formatTimeRange(startTime, endTime) {
+        const [startHours, startMinutes] = startTime.split(':').map(Number);
+        const [endHours, endMinutes] = endTime.split(':').map(Number);
+        
+        return `${this.plannerManager.formatTime12h(startHours, startMinutes)} - ${this.plannerManager.formatTime12h(endHours, endMinutes)}`;
+    }
+
+    setupCurrentTimeIndicator() {
+        // Clear existing interval
+        if (this.plannerManager.timeUpdateInterval) {
+            clearInterval(this.plannerManager.timeUpdateInterval);
+        }
+
+        const updateIndicator = () => {
+            const indicator = document.getElementById('current-time-indicator');
+            const label = document.getElementById('current-time-label');
+            
+            // Only show for today
+            const today = this.plannerManager.formatDate(new Date());
+            const viewingDate = this.plannerManager.formatDate(this.plannerManager.currentDate);
+            
+            if (today !== viewingDate) {
+                indicator.classList.remove('visible');
+                return;
+            }
+            
+            const timeInfo = this.plannerManager.getCurrentTimeInfo();
+            
+            if (timeInfo) {
+                indicator.style.top = `${timeInfo.percentage}%`;
+                label.textContent = timeInfo.timeString;
+                indicator.classList.add('visible');
+            } else {
+                indicator.classList.remove('visible');
+            }
+        };
+
+        // Update immediately
+        updateIndicator();
+
+        // Update every minute
+        this.plannerManager.timeUpdateInterval = setInterval(updateIndicator, 60000);
+    }
+
+    showPlannerEventModal(eventId = null, defaultStartTime = null) {
+        const modal = document.getElementById('planner-event-modal');
+        const form = document.getElementById('planner-event-form');
+        const title = document.getElementById('planner-event-modal-title');
+        const deleteBtn = document.getElementById('delete-planner-event');
+        
+        if (eventId) {
+            // Edit mode
+            const event = this.dataManager.data.plannerEvents.find(e => e.id === eventId);
+            if (event) {
+                title.textContent = 'Edit Event';
+                document.getElementById('event-title').value = event.title;
+                document.getElementById('event-start-time').value = event.startTime;
+                document.getElementById('event-end-time').value = event.endTime;
+                document.getElementById('event-category').value = event.category;
+                document.getElementById('event-notes').value = event.notes || '';
+                form.dataset.editingId = eventId;
+                deleteBtn.style.display = 'block';
+            }
+        } else {
+            // Add mode
+            title.textContent = 'Add Event';
+            form.reset();
+            delete form.dataset.editingId;
+            deleteBtn.style.display = 'none';
+            
+            // Set default times if provided
+            if (defaultStartTime) {
+                document.getElementById('event-start-time').value = defaultStartTime;
+                
+                // Calculate end time (1 hour later, but not beyond 23:00, and strictly after start)
+                const [hours, minutes] = defaultStartTime.split(':').map(Number);
+                const startTotalMinutes = hours * 60 + minutes;
+                const maxEndMinutes = 23 * 60; // 23:00 is the latest allowed end time
+                
+                if (startTotalMinutes < maxEndMinutes) {
+                    let endTotalMinutes = startTotalMinutes + 60;
+                    if (endTotalMinutes > maxEndMinutes) {
+                        endTotalMinutes = maxEndMinutes;
+                    }
+                    
+                    if (endTotalMinutes > startTotalMinutes) {
+                        const endHours = Math.floor(endTotalMinutes / 60);
+                        const endMinutes = endTotalMinutes % 60;
+                        document.getElementById('event-end-time').value =
+                            `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+                    } else {
+                        // If we can't compute a valid end time, leave it blank for the user to set.
+                        document.getElementById('event-end-time').value = '';
+                    }
+                } else {
+                    // Start time is at or after the maximum end time; don't set a default end time.
+                    document.getElementById('event-end-time').value = '';
+                }
+            }
+        }
+        
+        modal.classList.add('active');
+        document.getElementById('event-title').focus();
     }
 
     // Stats View
@@ -1212,6 +1657,73 @@ class HabitTrackerApp {
         document.getElementById('import-modal').onclick = (e) => {
             if (e.target.id === 'import-modal') {
                 document.getElementById('import-modal').classList.remove('active');
+            }
+        };
+
+        // Planner event modal
+        document.getElementById('close-planner-event-modal').onclick = () => {
+            document.getElementById('planner-event-modal').classList.remove('active');
+        };
+
+        document.getElementById('cancel-planner-event').onclick = () => {
+            document.getElementById('planner-event-modal').classList.remove('active');
+        };
+
+        document.getElementById('delete-planner-event').onclick = async () => {
+            const form = document.getElementById('planner-event-form');
+            const eventId = form.dataset.editingId;
+            
+            if (eventId && confirm('Delete this event?')) {
+                await this.plannerManager.deleteEvent(eventId);
+                document.getElementById('planner-event-modal').classList.remove('active');
+                this.renderPlannerView();
+            }
+        };
+
+        document.getElementById('planner-event-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const title = document.getElementById('event-title').value.trim();
+            const startTime = document.getElementById('event-start-time').value;
+            const endTime = document.getElementById('event-end-time').value;
+            const category = document.getElementById('event-category').value;
+            const notes = document.getElementById('event-notes').value.trim();
+            
+            // Validate times using numeric comparison
+            const startMinutes = this.plannerManager.timeToMinutes(startTime);
+            const endMinutes = this.plannerManager.timeToMinutes(endTime);
+            
+            if (startMinutes >= endMinutes) {
+                alert('End time must be after start time');
+                return;
+            }
+            
+            if (title && startTime && endTime) {
+                const form = document.getElementById('planner-event-form');
+                const editingId = form.dataset.editingId;
+                
+                if (editingId) {
+                    await this.plannerManager.updateEvent(editingId, startTime, endTime, title, category, notes);
+                    delete form.dataset.editingId;
+                } else {
+                    await this.plannerManager.addEvent(
+                        this.plannerManager.currentDate,
+                        startTime,
+                        endTime,
+                        title,
+                        category,
+                        notes
+                    );
+                }
+                
+                document.getElementById('planner-event-modal').classList.remove('active');
+                form.reset();
+                this.renderPlannerView();
+            }
+        };
+
+        document.getElementById('planner-event-modal').onclick = (e) => {
+            if (e.target.id === 'planner-event-modal') {
+                document.getElementById('planner-event-modal').classList.remove('active');
             }
         };
     }

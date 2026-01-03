@@ -164,10 +164,12 @@ class DataManager {
     }
 
     // Habits
-    async addHabit(name) {
+    async addHabit(name, description = '') {
         const habit = {
             id: Date.now().toString(),
             name,
+            description,
+            archived: false,
             createdAt: new Date().toISOString()
         };
         this.data.habits.push(habit);
@@ -175,24 +177,50 @@ class DataManager {
         return habit;
     }
 
+    async updateHabit(id, name, description = '') {
+        const habitIndex = this.data.habits.findIndex(h => h.id === id);
+        if (habitIndex !== -1) {
+            this.data.habits[habitIndex] = {
+                ...this.data.habits[habitIndex],
+                name,
+                description
+            };
+            await this.saveData();
+            return this.data.habits[habitIndex];
+        }
+        return null;
+    }
+
+    async archiveHabit(id) {
+        const habitIndex = this.data.habits.findIndex(h => h.id === id);
+        if (habitIndex !== -1) {
+            this.data.habits[habitIndex].archived = true;
+            await this.saveData();
+        }
+    }
+
+    async unarchiveHabit(id) {
+        const habitIndex = this.data.habits.findIndex(h => h.id === id);
+        if (habitIndex !== -1) {
+            this.data.habits[habitIndex].archived = false;
+            await this.saveData();
+        }
+    }
+
     async deleteHabit(id) {
         this.data.habits = this.data.habits.filter(h => h.id !== id);
-        // Clean up habit data from days
-        Object.keys(this.data.days).forEach(date => {
-            if (this.data.days[date].habits) {
-                delete this.data.days[date].habits[id];
-            }
-        });
+        // Do NOT clean up habit data from days - preserve historical data
         await this.saveData();
     }
 
     // Tracking Fields
-    async addTrackingField(name, type, unit = '') {
+    async addTrackingField(name, type, unit = '', description = '') {
         const field = {
             id: Date.now().toString(),
             name,
             type,
             unit,
+            description,
             createdAt: new Date().toISOString()
         };
         this.data.trackingFields.push(field);
@@ -200,14 +228,15 @@ class DataManager {
         return field;
     }
 
-    async updateTrackingField(id, name, type, unit = '') {
+    async updateTrackingField(id, name, type, unit = '', description = '') {
         const fieldIndex = this.data.trackingFields.findIndex(f => f.id === id);
         if (fieldIndex !== -1) {
             this.data.trackingFields[fieldIndex] = {
                 ...this.data.trackingFields[fieldIndex],
                 name,
                 type,
-                unit
+                unit,
+                description
             };
             await this.saveData();
             return this.data.trackingFields[fieldIndex];
@@ -217,12 +246,7 @@ class DataManager {
 
     async deleteTrackingField(id) {
         this.data.trackingFields = this.data.trackingFields.filter(f => f.id !== id);
-        // Clean up tracking data from days
-        Object.keys(this.data.days).forEach(date => {
-            if (this.data.days[date].tracking) {
-                delete this.data.days[date].tracking[id];
-            }
-        });
+        // Do NOT clean up tracking data from days - preserve historical data
         await this.saveData();
     }
 
@@ -263,11 +287,13 @@ class DataManager {
         }
         
         const dayData = this.getDayData(date);
-        const totalHabits = this.data.habits.length;
+        // Only count non-archived habits
+        const activeHabits = this.data.habits.filter(h => !h.archived);
+        const totalHabits = activeHabits.length;
         
         if (totalHabits === 0) return 'gray';
         
-        const completedHabits = Object.values(dayData.habits).filter(v => v).length;
+        const completedHabits = activeHabits.filter(h => dayData.habits[h.id]).length;
         
         if (completedHabits === 0) return 'red';
         if (completedHabits === totalHabits) return 'green';
@@ -399,9 +425,9 @@ class HabitTrackerApp {
         const statusIndicator = document.querySelector('.status-indicator');
         statusIndicator.className = `status-indicator ${status}`;
 
-        // Habits list
+        // Habits list - only show non-archived habits
         const habitsList = document.getElementById('habits-list');
-        const habits = this.dataManager.data.habits;
+        const habits = this.dataManager.data.habits.filter(h => !h.archived);
 
         if (habits.length === 0) {
             habitsList.innerHTML = '<div class="empty-state"><p>No habits yet. Add some in Settings.</p></div>';
@@ -416,7 +442,10 @@ class HabitTrackerApp {
                                 <polyline points="20 6 9 17 4 12"/>
                             </svg>
                         </div>
-                        <span class="habit-name">${habit.name}</span>
+                        <div class="habit-info">
+                            <span class="habit-name">${habit.name}</span>
+                            ${habit.description ? `<span class="habit-description">${habit.description}</span>` : ''}
+                        </div>
                     </div>
                 `;
             }).join('');
@@ -448,7 +477,10 @@ class HabitTrackerApp {
                 const value = dayData.tracking[field.id] || '';
                 return `
                     <div class="tracking-item">
-                        <div class="tracking-label">${field.name}${field.unit ? ` (${field.unit})` : ''}</div>
+                        <div class="tracking-label-wrapper">
+                            <div class="tracking-label">${field.name}${field.unit ? ` (${field.unit})` : ''}</div>
+                            ${field.description ? `<div class="tracking-description">${field.description}</div>` : ''}
+                        </div>
                         ${this.renderTrackingInput(field, value)}
                     </div>
                 `;
@@ -557,13 +589,14 @@ class HabitTrackerApp {
 
         let html = `<div class="day-status"><div class="status-indicator ${status}"></div></div>`;
 
-        // Habits
+        // Habits - only show non-archived habits
         html += '<h3>Habits</h3>';
-        if (this.dataManager.data.habits.length === 0) {
+        const activeHabits = this.dataManager.data.habits.filter(h => !h.archived);
+        if (activeHabits.length === 0) {
             html += '<p>No habits configured.</p>';
         } else {
             html += '<div class="habits-list">';
-            this.dataManager.data.habits.forEach(habit => {
+            activeHabits.forEach(habit => {
                 const completed = dayData.habits[habit.id] || false;
                 html += `
                     <div class="habit-item ${completed ? 'completed' : ''}">
@@ -572,7 +605,10 @@ class HabitTrackerApp {
                                 <polyline points="20 6 9 17 4 12"/>
                             </svg>
                         </div>
-                        <span class="habit-name">${habit.name}</span>
+                        <div class="habit-info">
+                            <span class="habit-name">${habit.name}</span>
+                            ${habit.description ? `<span class="habit-description">${habit.description}</span>` : ''}
+                        </div>
                     </div>
                 `;
             });
@@ -587,7 +623,10 @@ class HabitTrackerApp {
                 const value = dayData.tracking[field.id] || 'Not recorded';
                 html += `
                     <div class="tracking-item">
-                        <div class="tracking-label">${field.name}</div>
+                        <div class="tracking-label-wrapper">
+                            <div class="tracking-label">${field.name}</div>
+                            ${field.description ? `<div class="tracking-description">${field.description}</div>` : ''}
+                        </div>
                         <div style="font-weight: 600;">${value}${field.unit ? ' ' + field.unit : ''}</div>
                     </div>
                 `;
@@ -630,12 +669,13 @@ class HabitTrackerApp {
         // Render chart
         this.renderCompletionChart(days);
 
-        // Habit stats
+        // Habit stats - only show non-archived habits
         const habitStats = document.getElementById('habit-stats');
-        if (this.dataManager.data.habits.length === 0) {
+        const activeHabits = this.dataManager.data.habits.filter(h => !h.archived);
+        if (activeHabits.length === 0) {
             habitStats.innerHTML = '<div class="empty-state"><p>No habits to show stats for.</p></div>';
         } else {
-            habitStats.innerHTML = this.dataManager.data.habits.map(habit => {
+            habitStats.innerHTML = activeHabits.map(habit => {
                 let completed = 0;
                 let total = 0;
                 
@@ -681,12 +721,13 @@ class HabitTrackerApp {
 
         if (days.length === 0) return;
 
-        // Calculate data
+        // Calculate data - only count non-archived habits
         const data = days.map(date => {
             const dayData = this.dataManager.getDayData(date);
-            const total = this.dataManager.data.habits.length;
+            const activeHabits = this.dataManager.data.habits.filter(h => !h.archived);
+            const total = activeHabits.length;
             if (total === 0) return 0;
-            const completed = Object.values(dayData.habits).filter(v => v).length;
+            const completed = activeHabits.filter(h => dayData.habits[h.id]).length;
             return (completed / total) * 100;
         });
 
@@ -727,37 +768,110 @@ class HabitTrackerApp {
 
     // Settings View
     renderSettingsView() {
-        // Habits
+        // Habits - separate active and archived
         const habitsList = document.getElementById('habits-settings-list');
-        if (this.dataManager.data.habits.length === 0) {
-            habitsList.innerHTML = '<div class="empty-state"><p>No habits configured yet.</p></div>';
+        const activeHabits = this.dataManager.data.habits.filter(h => !h.archived);
+        const archivedHabits = this.dataManager.data.habits.filter(h => h.archived);
+        
+        let habitsHtml = '';
+        
+        if (activeHabits.length === 0 && archivedHabits.length === 0) {
+            habitsHtml = '<div class="empty-state"><p>No habits configured yet.</p></div>';
         } else {
-            habitsList.innerHTML = this.dataManager.data.habits.map(habit => `
-                <div class="setting-item">
-                    <div class="setting-info">
-                        <div class="setting-name">${habit.name}</div>
+            // Active habits
+            if (activeHabits.length > 0) {
+                habitsHtml += '<div class="subsection-label">Active Habits</div>';
+                habitsHtml += activeHabits.map(habit => `
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-name">${habit.name}</div>
+                            ${habit.description ? `<div class="setting-detail">${habit.description}</div>` : ''}
+                        </div>
+                        <div class="setting-actions">
+                            <button class="btn-icon edit" data-habit-id="${habit.id}">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                </svg>
+                            </button>
+                            <button class="btn-icon archive" data-habit-id="${habit.id}">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="21 8 21 21 3 21 3 8"/>
+                                    <rect x="1" y="3" width="22" height="5"/>
+                                    <line x1="10" y1="12" x2="14" y2="12"/>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
-                    <div class="setting-actions">
-                        <button class="btn-icon delete" data-habit-id="${habit.id}">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polyline points="3 6 5 6 21 6"/>
-                                <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-                            </svg>
-                        </button>
+                `).join('');
+            }
+            
+            // Archived habits
+            if (archivedHabits.length > 0) {
+                habitsHtml += '<div class="subsection-label" style="margin-top: 1rem;">Archived Habits</div>';
+                habitsHtml += archivedHabits.map(habit => `
+                    <div class="setting-item archived">
+                        <div class="setting-info">
+                            <div class="setting-name">${habit.name}</div>
+                            ${habit.description ? `<div class="setting-detail">${habit.description}</div>` : ''}
+                        </div>
+                        <div class="setting-actions">
+                            <button class="btn-icon unarchive" data-habit-id="${habit.id}" title="Unarchive">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 8 3 21 21 21 21 8"/>
+                                    <rect x="1" y="3" width="22" height="5"/>
+                                    <line x1="10" y1="12" x2="14" y2="12"/>
+                                </svg>
+                            </button>
+                            <button class="btn-icon delete" data-habit-id="${habit.id}">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"/>
+                                    <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
-                </div>
-            `).join('');
-
-            habitsList.querySelectorAll('.btn-icon.delete').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    if (confirm('Delete this habit? All associated data will be removed.')) {
-                        await this.dataManager.deleteHabit(btn.dataset.habitId);
-                        this.renderSettingsView();
-                        this.renderTodayView();
-                    }
-                });
-            });
+                `).join('');
+            }
         }
+        
+        habitsList.innerHTML = habitsHtml;
+
+        // Add event handlers for habit actions
+        habitsList.querySelectorAll('.btn-icon.edit').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const habitId = btn.dataset.habitId;
+                this.showHabitModal(habitId);
+            });
+        });
+
+        habitsList.querySelectorAll('.btn-icon.archive').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if (confirm('Archive this habit? It will be hidden but data will be preserved.')) {
+                    await this.dataManager.archiveHabit(btn.dataset.habitId);
+                    this.renderSettingsView();
+                    this.renderTodayView();
+                }
+            });
+        });
+
+        habitsList.querySelectorAll('.btn-icon.unarchive').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                await this.dataManager.unarchiveHabit(btn.dataset.habitId);
+                this.renderSettingsView();
+                this.renderTodayView();
+            });
+        });
+
+        habitsList.querySelectorAll('.btn-icon.delete').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if (confirm('Permanently delete this habit? Historical data will be preserved but the habit cannot be recovered.')) {
+                    await this.dataManager.deleteHabit(btn.dataset.habitId);
+                    this.renderSettingsView();
+                    this.renderTodayView();
+                }
+            });
+        });
 
         // Tracking fields
         const trackingList = document.getElementById('tracking-settings-list');
@@ -769,6 +883,7 @@ class HabitTrackerApp {
                     <div class="setting-info">
                         <div class="setting-name">${field.name}</div>
                         <div class="setting-detail">Type: ${field.type}${field.unit ? `, Unit: ${field.unit}` : ''}</div>
+                        ${field.description ? `<div class="setting-detail">${field.description}</div>` : ''}
                     </div>
                     <div class="setting-actions">
                         <button class="btn-icon edit" data-field-id="${field.id}">
@@ -796,7 +911,7 @@ class HabitTrackerApp {
 
             trackingList.querySelectorAll('.btn-icon.delete').forEach(btn => {
                 btn.addEventListener('click', async () => {
-                    if (confirm('Delete this tracking field? All associated data will be removed.')) {
+                    if (confirm('Delete this tracking field? Historical data will be preserved.')) {
                         await this.dataManager.deleteTrackingField(btn.dataset.fieldId);
                         this.renderSettingsView();
                         this.renderTodayView();
@@ -838,8 +953,15 @@ class HabitTrackerApp {
         document.getElementById('habit-form').onsubmit = async (e) => {
             e.preventDefault();
             const name = document.getElementById('habit-name').value.trim();
+            const description = document.getElementById('habit-description').value.trim();
             if (name) {
-                await this.dataManager.addHabit(name);
+                const editingId = document.getElementById('habit-form').dataset.editingId;
+                if (editingId) {
+                    await this.dataManager.updateHabit(editingId, name, description);
+                    delete document.getElementById('habit-form').dataset.editingId;
+                } else {
+                    await this.dataManager.addHabit(name, description);
+                }
                 document.getElementById('habit-modal').classList.remove('active');
                 document.getElementById('habit-form').reset();
                 this.renderSettingsView();
@@ -872,14 +994,15 @@ class HabitTrackerApp {
             const name = document.getElementById('tracking-name').value.trim();
             const type = document.getElementById('tracking-type').value;
             const unit = document.getElementById('tracking-unit').value.trim();
+            const description = document.getElementById('tracking-description').value.trim();
             
             if (name && type) {
                 const editingId = document.getElementById('tracking-form').dataset.editingId;
                 if (editingId) {
-                    await this.dataManager.updateTrackingField(editingId, name, type, unit);
+                    await this.dataManager.updateTrackingField(editingId, name, type, unit, description);
                     delete document.getElementById('tracking-form').dataset.editingId;
                 } else {
-                    await this.dataManager.addTrackingField(name, type, unit);
+                    await this.dataManager.addTrackingField(name, type, unit, description);
                 }
                 document.getElementById('tracking-modal').classList.remove('active');
                 document.getElementById('tracking-form').reset();
@@ -942,9 +1065,31 @@ class HabitTrackerApp {
         };
     }
 
-    showHabitModal() {
-        document.getElementById('habit-modal').classList.add('active');
-        document.getElementById('habit-name').focus();
+    showHabitModal(habitId = null) {
+        const modal = document.getElementById('habit-modal');
+        const form = document.getElementById('habit-form');
+        const title = document.getElementById('habit-modal-title');
+        const nameInput = document.getElementById('habit-name');
+        const descriptionInput = document.getElementById('habit-description');
+        
+        if (habitId) {
+            // Edit mode
+            const habit = this.dataManager.data.habits.find(h => h.id === habitId);
+            if (habit) {
+                title.textContent = 'Edit Habit';
+                nameInput.value = habit.name;
+                descriptionInput.value = habit.description || '';
+                form.dataset.editingId = habitId;
+            }
+        } else {
+            // Add mode
+            title.textContent = 'Add Habit';
+            form.reset();
+            delete form.dataset.editingId;
+        }
+        
+        modal.classList.add('active');
+        nameInput.focus();
     }
 
     showTrackingModal(fieldId = null) {
@@ -954,6 +1099,7 @@ class HabitTrackerApp {
         const nameInput = document.getElementById('tracking-name');
         const typeInput = document.getElementById('tracking-type');
         const unitInput = document.getElementById('tracking-unit');
+        const descriptionInput = document.getElementById('tracking-description');
         const unitGroup = document.getElementById('unit-group');
         
         if (fieldId) {
@@ -964,6 +1110,7 @@ class HabitTrackerApp {
                 nameInput.value = field.name;
                 typeInput.value = field.type;
                 unitInput.value = field.unit || '';
+                descriptionInput.value = field.description || '';
                 unitGroup.style.display = (field.type === 'number') ? 'block' : 'none';
                 form.dataset.editingId = fieldId;
             }

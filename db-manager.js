@@ -4,7 +4,7 @@
 class DBManager {
     constructor() {
         this.dbName = 'TrackDeezDB';
-        this.version = 1;
+        this.version = 2; // Incremented for description and archive fields
         this.db = null;
         this.isIndexedDBAvailable = this.checkIndexedDBSupport();
     }

@@ -242,6 +242,10 @@
                             <label for="habit-name">Habit Name</label>
                             <input type="text" id="habit-name" required placeholder="e.g., Exercise">
                         </div>
+                        <div class="form-group">
+                            <label for="habit-description">Description (optional)</label>
+                            <textarea id="habit-description" rows="3" placeholder="Add context about this habit..."></textarea>
+                        </div>
                         <div class="form-actions">
                             <button type="button" class="btn-secondary" id="cancel-habit">Cancel</button>
                             <button type="submit" class="btn-primary">Save</button>
@@ -276,6 +280,10 @@
                         <div class="form-group" id="unit-group" style="display: none;">
                             <label for="tracking-unit">Unit (optional)</label>
                             <input type="text" id="tracking-unit" placeholder="e.g., hours, cups">
+                        </div>
+                        <div class="form-group">
+                            <label for="tracking-description">Description (optional)</label>
+                            <textarea id="tracking-description" rows="3" placeholder="Add context about this field..."></textarea>
                         </div>
                         <div class="form-actions">
                             <button type="button" class="btn-secondary" id="cancel-tracking">Cancel</button>

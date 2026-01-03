@@ -826,3 +826,60 @@ button, .habit-item, .calendar-day {
         flex: 0 1 calc(50% - 0.25rem);
     }
 }
+
+/* Habit and tracking descriptions */
+.habit-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.habit-description {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+    line-height: 1.4;
+}
+
+.tracking-label-wrapper {
+    flex: 1;
+}
+
+.tracking-description {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+    line-height: 1.4;
+}
+
+/* Archived items */
+.setting-item.archived {
+    opacity: 0.6;
+    border: 1px dashed var(--border);
+}
+
+.subsection-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+}
+
+/* Archive button styling */
+.btn-icon.archive,
+.btn-icon.unarchive {
+    color: var(--warning);
+}
+
+.btn-icon.edit {
+    color: var(--primary-color);
+}
+
+/* Textarea styling */
+.form-group textarea {
+    resize: vertical;
+    min-height: 80px;
+    font-family: inherit;
+}

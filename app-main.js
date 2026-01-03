@@ -1085,8 +1085,8 @@ class HabitTrackerApp {
                     return;
                 }
                 
-                if (startValue < 0 || goalValue <= 0 || incrementValue <= 0 || daysForIncrement <= 0) {
-                    alert('All build-up values must be positive numbers');
+                if (startValue <= 0 || goalValue <= 0 || incrementValue <= 0 || daysForIncrement <= 0) {
+                    alert('All build-up values must be positive numbers greater than zero');
                     return;
                 }
                 

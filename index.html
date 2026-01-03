@@ -206,6 +206,7 @@
 
                 <div class="section">
                     <h2>Data</h2>
+                    <button id="import-data-btn" class="btn-secondary">Import Data</button>
                     <button id="export-data-btn" class="btn-secondary">Export Data</button>
                     <button id="clear-data-btn" class="btn-danger">Clear All Data</button>
                 </div>
@@ -266,10 +267,10 @@
                         <div class="form-group">
                             <label for="tracking-type">Input Type</label>
                             <select id="tracking-type" required>
+                                <option value="boolean">Yes or No</option>
                                 <option value="number">Number</option>
                                 <option value="text">Text</option>
-                                <option value="scale">Scale (1-5)</option>
-                                <option value="scale10">Scale (1-10)</option>
+                                <option value="time">Time</option>
                             </select>
                         </div>
                         <div class="form-group" id="unit-group" style="display: none;">
@@ -279,6 +280,33 @@
                         <div class="form-actions">
                             <button type="button" class="btn-secondary" id="cancel-tracking">Cancel</button>
                             <button type="submit" class="btn-primary">Save</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal for Importing Data -->
+        <div id="import-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Import Data</h2>
+                    <button class="modal-close" id="close-import-modal">×</button>
+                </div>
+                <div class="modal-body">
+                    <form id="import-form">
+                        <div class="form-group">
+                            <label for="import-file">Select JSON file</label>
+                            <input type="file" id="import-file" accept=".json,application/json" required>
+                        </div>
+                        <div class="form-group">
+                            <p style="color: #666; font-size: 0.9rem; margin: 0;">
+                                Import will merge the data with your existing data. Habits and tracking fields will be added, and day data will be updated.
+                            </p>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="btn-secondary" id="cancel-import">Cancel</button>
+                            <button type="submit" class="btn-primary">Import</button>
                         </div>
                     </form>
                 </div>

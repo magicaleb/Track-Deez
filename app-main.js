@@ -882,7 +882,8 @@ class HabitTrackerApp {
                 <div class="setting-item">
                     <div class="setting-info">
                         <div class="setting-name">${field.name}</div>
-                        <div class="setting-detail">Type: ${field.type}${field.unit ? `, Unit: ${field.unit}` : ''}${field.description ? `<br>${field.description}` : ''}</div>
+                        <div class="setting-detail">Type: ${field.type}${field.unit ? `, Unit: ${field.unit}` : ''}</div>
+                        ${field.description ? `<div class="setting-detail">${field.description}</div>` : ''}
                     </div>
                     <div class="setting-actions">
                         <button class="btn-icon edit" data-field-id="${field.id}">

@@ -7,38 +7,175 @@ const CANVAS_HEIGHT = 200;
 // Data Management
 class DataManager {
     constructor() {
-        this.data = this.loadData();
-    }
-
-    loadData() {
-        const data = localStorage.getItem('trackDeezData');
-        if (data) {
-            return JSON.parse(data);
-        }
-        return {
+        this.data = {
             habits: [],
             trackingFields: [],
             days: {} // key: YYYY-MM-DD, value: { habits: {}, tracking: {} }
         };
+        this.dbManager = new DBManager();
+        this.useIndexedDB = false;
+        this.initialized = false;
+        this.initPromise = this.init();
     }
 
-    saveData() {
-        localStorage.setItem('trackDeezData', JSON.stringify(this.data));
+    async init() {
+        try {
+            // Try to initialize IndexedDB
+            await this.dbManager.init();
+            this.useIndexedDB = true;
+            console.log('IndexedDB initialized successfully');
+            
+            // Check for data migration from localStorage
+            await this.migrateFromLocalStorage();
+            
+            // Load data from IndexedDB
+            await this.loadData();
+        } catch (error) {
+            console.error('IndexedDB initialization failed, falling back to localStorage:', error);
+            this.useIndexedDB = false;
+            
+            // Load from localStorage as fallback
+            this.loadDataFromLocalStorage();
+        }
+        
+        this.initialized = true;
+    }
+
+    async ensureInitialized() {
+        if (!this.initialized) {
+            await this.initPromise;
+        }
+    }
+
+    async migrateFromLocalStorage() {
+        try {
+            const localData = localStorage.getItem('trackDeezData');
+            if (!localData) {
+                console.log('No localStorage data to migrate');
+                return;
+            }
+
+            console.log('Found localStorage data, starting migration...');
+            const data = JSON.parse(localData);
+
+            // Migrate habits
+            if (data.habits && data.habits.length > 0) {
+                await this.dbManager.putAll('habits', data.habits);
+                console.log(`Migrated ${data.habits.length} habits`);
+            }
+
+            // Migrate tracking fields
+            if (data.trackingFields && data.trackingFields.length > 0) {
+                await this.dbManager.putAll('trackingFields', data.trackingFields);
+                console.log(`Migrated ${data.trackingFields.length} tracking fields`);
+            }
+
+            // Migrate days data
+            if (data.days && Object.keys(data.days).length > 0) {
+                const daysArray = Object.keys(data.days).map(date => ({
+                    date: date,
+                    habits: data.days[date].habits || {},
+                    tracking: data.days[date].tracking || {}
+                }));
+                await this.dbManager.putAll('days', daysArray);
+                console.log(`Migrated ${daysArray.length} days of data`);
+            }
+
+            // Remove localStorage data after successful migration
+            localStorage.removeItem('trackDeezData');
+            console.log('Migration complete! localStorage data removed.');
+        } catch (error) {
+            console.error('Error during migration:', error);
+            // Don't remove localStorage if migration failed
+        }
+    }
+
+    loadDataFromLocalStorage() {
+        const data = localStorage.getItem('trackDeezData');
+        if (data) {
+            this.data = JSON.parse(data);
+        }
+    }
+
+    async loadData() {
+        if (!this.useIndexedDB) {
+            this.loadDataFromLocalStorage();
+            return;
+        }
+
+        try {
+            // Load habits
+            const habits = await this.dbManager.getAll('habits');
+            this.data.habits = habits || [];
+
+            // Load tracking fields
+            const trackingFields = await this.dbManager.getAll('trackingFields');
+            this.data.trackingFields = trackingFields || [];
+
+            // Load days data
+            const daysArray = await this.dbManager.getAll('days');
+            this.data.days = {};
+            daysArray.forEach(dayObj => {
+                this.data.days[dayObj.date] = {
+                    habits: dayObj.habits || {},
+                    tracking: dayObj.tracking || {}
+                };
+            });
+
+            console.log('Data loaded from IndexedDB');
+        } catch (error) {
+            console.error('Error loading data from IndexedDB:', error);
+            // Fallback to empty data structure
+            this.data = {
+                habits: [],
+                trackingFields: [],
+                days: {}
+            };
+        }
+    }
+
+    async saveData() {
+        if (!this.useIndexedDB) {
+            localStorage.setItem('trackDeezData', JSON.stringify(this.data));
+            return;
+        }
+
+        try {
+            // Save habits
+            await this.dbManager.putAll('habits', this.data.habits);
+
+            // Save tracking fields
+            await this.dbManager.putAll('trackingFields', this.data.trackingFields);
+
+            // Save days data
+            const daysArray = Object.keys(this.data.days).map(date => ({
+                date: date,
+                habits: this.data.days[date].habits || {},
+                tracking: this.data.days[date].tracking || {}
+            }));
+            await this.dbManager.putAll('days', daysArray);
+
+            console.log('Data saved to IndexedDB');
+        } catch (error) {
+            console.error('Error saving data to IndexedDB:', error);
+            // Fallback to localStorage
+            localStorage.setItem('trackDeezData', JSON.stringify(this.data));
+        }
     }
 
     // Habits
-    addHabit(name) {
+    async addHabit(name) {
         const habit = {
             id: Date.now().toString(),
             name,
             createdAt: new Date().toISOString()
         };
         this.data.habits.push(habit);
-        this.saveData();
+        await this.saveData();
         return habit;
     }
 
-    deleteHabit(id) {
+    async deleteHabit(id) {
         this.data.habits = this.data.habits.filter(h => h.id !== id);
         // Clean up habit data from days
         Object.keys(this.data.days).forEach(date => {
@@ -46,11 +183,11 @@ class DataManager {
                 delete this.data.days[date].habits[id];
             }
         });
-        this.saveData();
+        await this.saveData();
     }
 
     // Tracking Fields
-    addTrackingField(name, type, unit = '') {
+    async addTrackingField(name, type, unit = '') {
         const field = {
             id: Date.now().toString(),
             name,
@@ -59,11 +196,11 @@ class DataManager {
             createdAt: new Date().toISOString()
         };
         this.data.trackingFields.push(field);
-        this.saveData();
+        await this.saveData();
         return field;
     }
 
-    deleteTrackingField(id) {
+    async deleteTrackingField(id) {
         this.data.trackingFields = this.data.trackingFields.filter(f => f.id !== id);
         // Clean up tracking data from days
         Object.keys(this.data.days).forEach(date => {
@@ -71,7 +208,7 @@ class DataManager {
                 delete this.data.days[date].tracking[id];
             }
         });
-        this.saveData();
+        await this.saveData();
     }
 
     // Day Data
@@ -83,18 +220,18 @@ class DataManager {
         return this.data.days[dateStr];
     }
 
-    setHabitComplete(date, habitId, completed) {
+    async setHabitComplete(date, habitId, completed) {
         const dateStr = this.formatDate(date);
         const dayData = this.getDayData(date);
         dayData.habits[habitId] = completed;
-        this.saveData();
+        await this.saveData();
     }
 
-    setTracking(date, fieldId, value) {
+    async setTracking(date, fieldId, value) {
         const dateStr = this.formatDate(date);
         const dayData = this.getDayData(date);
         dayData.tracking[fieldId] = value;
-        this.saveData();
+        await this.saveData();
     }
 
     getDayStatus(date) {
@@ -119,13 +256,13 @@ class DataManager {
         return JSON.stringify(this.data, null, 2);
     }
 
-    clearAllData() {
+    async clearAllData() {
         this.data = {
             habits: [],
             trackingFields: [],
             days: {}
         };
-        this.saveData();
+        await this.saveData();
     }
 }
 
@@ -141,7 +278,10 @@ class HabitTrackerApp {
         this.init();
     }
 
-    init() {
+    async init() {
+        // Wait for DataManager to initialize
+        await this.dataManager.ensureInitialized();
+        
         this.setupNavigation();
         this.setupModals();
         this.renderTodayView();
@@ -218,11 +358,11 @@ class HabitTrackerApp {
 
             // Add click handlers
             habitsList.querySelectorAll('.habit-item').forEach(item => {
-                item.addEventListener('click', () => {
+                item.addEventListener('click', async () => {
                     const habitId = item.dataset.habitId;
                     const dayData = this.dataManager.getDayData(this.currentDate);
                     const completed = !dayData.habits[habitId];
-                    this.dataManager.setHabitComplete(this.currentDate, habitId, completed);
+                    await this.dataManager.setHabitComplete(this.currentDate, habitId, completed);
                     this.renderTodayView();
                 });
             });
@@ -251,14 +391,14 @@ class HabitTrackerApp {
 
             // Add event listeners
             trackingList.querySelectorAll('input, select').forEach(input => {
-                input.addEventListener('change', (e) => {
+                input.addEventListener('change', async (e) => {
                     const fieldId = e.target.dataset.fieldId;
-                    this.dataManager.setTracking(this.currentDate, fieldId, e.target.value);
+                    await this.dataManager.setTracking(this.currentDate, fieldId, e.target.value);
                 });
             });
 
             trackingList.querySelectorAll('.scale-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
+                btn.addEventListener('click', async (e) => {
                     const fieldId = btn.dataset.fieldId;
                     const value = btn.dataset.value;
                     
@@ -268,7 +408,7 @@ class HabitTrackerApp {
                     btn.classList.add('selected');
                     
                     // Save data
-                    this.dataManager.setTracking(this.currentDate, fieldId, value);
+                    await this.dataManager.setTracking(this.currentDate, fieldId, value);
                 });
             });
         }
@@ -565,9 +705,9 @@ class HabitTrackerApp {
             `).join('');
 
             habitsList.querySelectorAll('.btn-icon.delete').forEach(btn => {
-                btn.addEventListener('click', () => {
+                btn.addEventListener('click', async () => {
                     if (confirm('Delete this habit? All associated data will be removed.')) {
-                        this.dataManager.deleteHabit(btn.dataset.habitId);
+                        await this.dataManager.deleteHabit(btn.dataset.habitId);
                         this.renderSettingsView();
                         this.renderTodayView();
                     }
@@ -598,9 +738,9 @@ class HabitTrackerApp {
             `).join('');
 
             trackingList.querySelectorAll('.btn-icon.delete').forEach(btn => {
-                btn.addEventListener('click', () => {
+                btn.addEventListener('click', async () => {
                     if (confirm('Delete this tracking field? All associated data will be removed.')) {
-                        this.dataManager.deleteTrackingField(btn.dataset.fieldId);
+                        await this.dataManager.deleteTrackingField(btn.dataset.fieldId);
                         this.renderSettingsView();
                         this.renderTodayView();
                     }
@@ -637,11 +777,11 @@ class HabitTrackerApp {
             document.getElementById('habit-modal').classList.remove('active');
         };
 
-        document.getElementById('habit-form').onsubmit = (e) => {
+        document.getElementById('habit-form').onsubmit = async (e) => {
             e.preventDefault();
             const name = document.getElementById('habit-name').value.trim();
             if (name) {
-                this.dataManager.addHabit(name);
+                await this.dataManager.addHabit(name);
                 document.getElementById('habit-modal').classList.remove('active');
                 document.getElementById('habit-form').reset();
                 this.renderSettingsView();
@@ -669,14 +809,14 @@ class HabitTrackerApp {
             unitGroup.style.display = (e.target.value === 'number') ? 'block' : 'none';
         };
 
-        document.getElementById('tracking-form').onsubmit = (e) => {
+        document.getElementById('tracking-form').onsubmit = async (e) => {
             e.preventDefault();
             const name = document.getElementById('tracking-name').value.trim();
             const type = document.getElementById('tracking-type').value;
             const unit = document.getElementById('tracking-unit').value.trim();
             
             if (name && type) {
-                this.dataManager.addTrackingField(name, type, unit);
+                await this.dataManager.addTrackingField(name, type, unit);
                 document.getElementById('tracking-modal').classList.remove('active');
                 document.getElementById('tracking-form').reset();
                 document.getElementById('unit-group').style.display = 'none';
@@ -713,9 +853,9 @@ class HabitTrackerApp {
         URL.revokeObjectURL(url);
     }
 
-    clearData() {
+    async clearData() {
         if (confirm('Are you sure you want to clear all data? This cannot be undone.')) {
-            this.dataManager.clearAllData();
+            await this.dataManager.clearAllData();
             this.renderTodayView();
             this.renderCalendarView();
             this.renderStatsView();

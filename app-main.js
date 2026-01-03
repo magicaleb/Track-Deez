@@ -1080,6 +1080,16 @@ class HabitTrackerApp {
                 const unit = document.getElementById('build-up-unit').value.trim();
                 
                 // Validation
+                if (isNaN(startValue) || isNaN(goalValue) || isNaN(incrementValue) || isNaN(daysForIncrement)) {
+                    alert('Please fill in all required build-up habit fields with valid numbers');
+                    return;
+                }
+                
+                if (startValue < 0 || goalValue <= 0 || incrementValue <= 0 || daysForIncrement <= 0) {
+                    alert('All build-up values must be positive numbers');
+                    return;
+                }
+                
                 if (goalValue <= startValue) {
                     alert('Goal Value must be greater than Starting Value');
                     return;

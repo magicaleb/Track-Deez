@@ -28,7 +28,7 @@ class CloudStorageProvider {
 
 /**
  * GitHub API Storage Provider
- * Stores data as JSON file in the repository
+ * Stores data as JSON file at data/user-data.json in the repository
  */
 class GitHubStorageProvider extends CloudStorageProvider {
     constructor() {
@@ -214,7 +214,6 @@ class CloudStorageManager {
         this.config = this.loadConfig();
         this.syncInProgress = false;
         this.lastSyncTime = null;
-        this.autoSyncInterval = null;
     }
 
     loadConfig() {

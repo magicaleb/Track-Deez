@@ -35,7 +35,7 @@ class DataManager {
             // Check for data migration from localStorage
             await this.migrateFromLocalStorage();
             
-            // Load data (from cloud or local)
+            // Load data from cloud storage first, fallback to local storage if cloud fails or not configured
             await this.loadData();
         } catch (error) {
             console.error('IndexedDB initialization failed, falling back to localStorage:', error);

@@ -16,12 +16,16 @@ class DataManager {
             templates: [] // array of event template objects
         };
         this.dbManager = new DBManager();
+        this.cloudStorageManager = new CloudStorageManager();
         this.useIndexedDB = false;
         this.initialized = false;
         this.initPromise = this.init();
     }
 
     async init() {
+        // Initialize cloud storage manager
+        await this.cloudStorageManager.initializeFromConfig();
+        
         try {
             // Try to initialize IndexedDB
             await this.dbManager.init();
@@ -31,7 +35,7 @@ class DataManager {
             // Check for data migration from localStorage
             await this.migrateFromLocalStorage();
             
-            // Load data from IndexedDB
+            // Load data (from cloud or local)
             await this.loadData();
         } catch (error) {
             console.error('IndexedDB initialization failed, falling back to localStorage:', error);
@@ -113,6 +117,30 @@ class DataManager {
     }
 
     async loadData() {
+        // Check if we should load from cloud storage
+        if (this.cloudStorageManager.isCloudMode() && this.cloudStorageManager.isConfigured()) {
+            try {
+                console.log('Loading data from cloud storage...');
+                const cloudData = await this.cloudStorageManager.downloadData();
+                
+                if (cloudData) {
+                    this.data = {
+                        habits: cloudData.habits || [],
+                        trackingFields: cloudData.trackingFields || [],
+                        days: cloudData.days || {},
+                        plannerEvents: cloudData.plannerEvents || [],
+                        events: cloudData.events || [],
+                        templates: cloudData.templates || []
+                    };
+                    console.log('Data loaded from cloud storage');
+                    return;
+                }
+            } catch (error) {
+                console.error('Failed to load from cloud storage, falling back to local:', error);
+                // Continue to load from local storage
+            }
+        }
+
         if (!this.useIndexedDB) {
             this.loadDataFromLocalStorage();
             return;
@@ -165,6 +193,19 @@ class DataManager {
     }
 
     async saveData() {
+        // Save to cloud storage if enabled
+        if (this.cloudStorageManager.isCloudMode() && this.cloudStorageManager.isConfigured()) {
+            try {
+                console.log('Saving data to cloud storage...');
+                await this.cloudStorageManager.uploadData(this.data);
+                console.log('Data saved to cloud storage');
+                // Also save locally as backup
+            } catch (error) {
+                console.error('Failed to save to cloud storage:', error);
+                // Continue to save locally
+            }
+        }
+
         if (!this.useIndexedDB) {
             localStorage.setItem('trackDeezData', JSON.stringify(this.data));
             return;
@@ -466,6 +507,86 @@ class DataManager {
             templates: []
         };
         await this.saveData();
+    }
+
+    // Cloud Storage Methods
+    async configureCloudStorage(provider, config) {
+        if (provider === 'github') {
+            try {
+                await this.cloudStorageManager.configureGitHub(
+                    config.token,
+                    config.owner,
+                    config.repo,
+                    config.branch
+                );
+                return { success: true };
+            } catch (error) {
+                console.error('Failed to configure cloud storage:', error);
+                return { success: false, error: error.message };
+            }
+        }
+        return { success: false, error: 'Unsupported provider' };
+    }
+
+    async switchToCloudStorage() {
+        try {
+            // Sync current local data to cloud
+            const result = await this.cloudStorageManager.syncData(this.data);
+            
+            // Switch to cloud mode
+            this.cloudStorageManager.setStorageMode('cloud');
+            
+            if (result.action === 'downloaded') {
+                // Cloud data was newer, update local data
+                this.data = result.data;
+                await this.saveData();
+            }
+            
+            return { success: true, action: result.action };
+        } catch (error) {
+            console.error('Failed to switch to cloud storage:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    async switchToLocalStorage() {
+        this.cloudStorageManager.setStorageMode('local');
+        // Data is already in local storage, just need to switch mode
+        return { success: true };
+    }
+
+    async syncWithCloud() {
+        if (!this.cloudStorageManager.isCloudMode()) {
+            return { success: false, error: 'Not in cloud mode' };
+        }
+
+        try {
+            const result = await this.cloudStorageManager.syncData(this.data);
+            
+            if (result.action === 'downloaded') {
+                // Cloud data was newer, update local data
+                this.data = result.data;
+                await this.saveData();
+            }
+            
+            return { success: true, action: result.action };
+        } catch (error) {
+            console.error('Failed to sync with cloud:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    getCloudStorageStatus() {
+        return {
+            isCloudMode: this.cloudStorageManager.isCloudMode(),
+            isConfigured: this.cloudStorageManager.isConfigured(),
+            lastSyncTime: this.cloudStorageManager.lastSyncTime,
+            syncInProgress: this.cloudStorageManager.syncInProgress
+        };
+    }
+
+    clearCloudStorageConfig() {
+        this.cloudStorageManager.clearConfig();
     }
 
     // Events
@@ -2057,6 +2178,193 @@ class HabitTrackerApp {
         document.getElementById('import-data-btn').onclick = () => this.showImportModal();
         document.getElementById('export-data-btn').onclick = () => this.exportData();
         document.getElementById('clear-data-btn').onclick = () => this.clearData();
+
+        // Cloud storage UI setup
+        this.setupCloudStorageUI();
+    }
+
+    setupCloudStorageUI() {
+        const localRadio = document.querySelector('input[name="storage-mode"][value="local"]');
+        const cloudRadio = document.querySelector('input[name="storage-mode"][value="cloud"]');
+        const cloudConfig = document.getElementById('cloud-storage-config');
+        const cloudActions = document.getElementById('cloud-actions');
+
+        // Initialize based on current mode
+        const status = this.dataManager.getCloudStorageStatus();
+        if (status.isCloudMode) {
+            cloudRadio.checked = true;
+            if (status.isConfigured) {
+                cloudConfig.style.display = 'none';
+                cloudActions.style.display = 'block';
+                this.updateSyncStatus();
+            } else {
+                cloudConfig.style.display = 'block';
+                cloudActions.style.display = 'none';
+            }
+        } else {
+            localRadio.checked = true;
+            cloudConfig.style.display = 'none';
+            cloudActions.style.display = 'none';
+        }
+
+        // Storage mode change
+        localRadio.onchange = async () => {
+            if (localRadio.checked) {
+                if (confirm('Switch to local storage? Cloud sync will be disabled.')) {
+                    const result = await this.dataManager.switchToLocalStorage();
+                    if (result.success) {
+                        cloudConfig.style.display = 'none';
+                        cloudActions.style.display = 'none';
+                        this.showCloudStatus('Switched to local storage', 'success');
+                    }
+                } else {
+                    cloudRadio.checked = true;
+                }
+            }
+        };
+
+        cloudRadio.onchange = () => {
+            if (cloudRadio.checked) {
+                const status = this.dataManager.getCloudStorageStatus();
+                if (status.isConfigured) {
+                    cloudConfig.style.display = 'none';
+                    cloudActions.style.display = 'block';
+                } else {
+                    cloudConfig.style.display = 'block';
+                    cloudActions.style.display = 'none';
+                }
+            }
+        };
+
+        // Test connection
+        document.getElementById('test-cloud-connection-btn').onclick = async () => {
+            const token = document.getElementById('github-token').value.trim();
+            const owner = document.getElementById('github-owner').value.trim();
+            const repo = document.getElementById('github-repo').value.trim();
+
+            if (!token || !owner || !repo) {
+                this.showCloudStatus('Please fill in all required fields', 'error');
+                return;
+            }
+
+            this.showCloudStatus('Testing connection...', 'info');
+            const result = await this.dataManager.configureCloudStorage('github', {
+                token, owner, repo, branch: 'main'
+            });
+
+            if (result.success) {
+                this.showCloudStatus('Connection successful!', 'success');
+            } else {
+                this.showCloudStatus(`Connection failed: ${result.error}`, 'error');
+            }
+        };
+
+        // Save cloud config
+        document.getElementById('save-cloud-config-btn').onclick = async () => {
+            const token = document.getElementById('github-token').value.trim();
+            const owner = document.getElementById('github-owner').value.trim();
+            const repo = document.getElementById('github-repo').value.trim();
+            const branch = document.getElementById('github-branch').value.trim() || 'main';
+
+            if (!token || !owner || !repo) {
+                this.showCloudStatus('Please fill in all required fields', 'error');
+                return;
+            }
+
+            this.showCloudStatus('Configuring cloud storage...', 'info');
+            const configResult = await this.dataManager.configureCloudStorage('github', {
+                token, owner, repo, branch
+            });
+
+            if (!configResult.success) {
+                this.showCloudStatus(`Configuration failed: ${configResult.error}`, 'error');
+                return;
+            }
+
+            // Switch to cloud mode and sync
+            const switchResult = await this.dataManager.switchToCloudStorage();
+            
+            if (switchResult.success) {
+                cloudConfig.style.display = 'none';
+                cloudActions.style.display = 'block';
+                const action = switchResult.action === 'uploaded' ? 'uploaded to' : 'downloaded from';
+                this.showCloudStatus(`Successfully ${action} cloud storage!`, 'success');
+                this.updateSyncStatus();
+            } else {
+                this.showCloudStatus(`Failed to switch: ${switchResult.error}`, 'error');
+            }
+        };
+
+        // Sync now
+        document.getElementById('sync-now-btn').onclick = async () => {
+            this.updateSyncStatus('Syncing...');
+            const result = await this.dataManager.syncWithCloud();
+            
+            if (result.success) {
+                const action = result.action === 'uploaded' ? 'Data uploaded to cloud' : 'Data downloaded from cloud';
+                this.updateSyncStatus(`${action} - Last sync: just now`);
+                // Refresh views if data was downloaded
+                if (result.action === 'downloaded') {
+                    this.renderTodayView();
+                    this.renderCalendarView();
+                    this.renderStatsView();
+                    this.renderSettingsView();
+                }
+            } else {
+                this.updateSyncStatus(`Sync failed: ${result.error}`);
+            }
+        };
+
+        // Switch to local
+        document.getElementById('switch-to-local-btn').onclick = async () => {
+            if (confirm('Switch to local storage? Your data will remain on this device but will no longer sync to the cloud.')) {
+                const result = await this.dataManager.switchToLocalStorage();
+                if (result.success) {
+                    localRadio.checked = true;
+                    cloudConfig.style.display = 'none';
+                    cloudActions.style.display = 'none';
+                    this.showCloudStatus('Switched to local storage', 'success');
+                }
+            }
+        };
+    }
+
+    showCloudStatus(message, type) {
+        const statusEl = document.getElementById('cloud-status');
+        statusEl.textContent = message;
+        statusEl.style.display = 'block';
+        
+        // Color based on type
+        if (type === 'success') {
+            statusEl.style.backgroundColor = '#d1fae5';
+            statusEl.style.color = '#065f46';
+        } else if (type === 'error') {
+            statusEl.style.backgroundColor = '#fee2e2';
+            statusEl.style.color = '#991b1b';
+        } else {
+            statusEl.style.backgroundColor = '#dbeafe';
+            statusEl.style.color = '#1e40af';
+        }
+
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+            statusEl.style.display = 'none';
+        }, 5000);
+    }
+
+    updateSyncStatus(message = null) {
+        const statusEl = document.getElementById('sync-status');
+        if (message) {
+            statusEl.textContent = message;
+        } else {
+            const status = this.dataManager.getCloudStorageStatus();
+            if (status.lastSyncTime) {
+                const timeStr = new Date(status.lastSyncTime).toLocaleString();
+                statusEl.textContent = `Last sync: ${timeStr}`;
+            } else {
+                statusEl.textContent = 'Not synced yet';
+            }
+        }
     }
 
     // Modals

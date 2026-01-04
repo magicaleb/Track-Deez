@@ -420,6 +420,19 @@
                             <input type="time" id="event-end-time" required>
                         </div>
                         <div class="form-group">
+                            <label for="planner-event-duration">Duration</label>
+                            <div class="duration-presets">
+                                <button type="button" class="preset-btn" data-duration="15">15 min</button>
+                                <button type="button" class="preset-btn" data-duration="30">30 min</button>
+                                <button type="button" class="preset-btn" data-duration="45">45 min</button>
+                                <button type="button" class="preset-btn" data-duration="60">1 hr</button>
+                                <button type="button" class="preset-btn" data-duration="90">1.5 hr</button>
+                                <button type="button" class="preset-btn" data-duration="120">2 hr</button>
+                            </div>
+                            <input type="number" id="planner-event-duration" min="1" placeholder="Custom duration (minutes)" style="margin-top: 0.5rem;">
+                            <small id="planner-duration-display" style="color: #6b7280; display: block; margin-top: 0.25rem;"></small>
+                        </div>
+                        <div class="form-group">
                             <label for="event-category">Category</label>
                             <select id="event-category">
                                 <option value="work">Work</option>

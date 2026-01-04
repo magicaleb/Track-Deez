@@ -1,14 +1,18 @@
 # Track Deez
 
-A Progressive Web App (PWA) optimized for iPhone and iOS devices.
+A Progressive Web App (PWA) habit tracker optimized for iPhone and iOS devices.
 
 ## Features
 
 - 📱 Mobile-first design optimized for iPhone
+- ☁️ **Cloud Storage**: Sync your data across devices via GitHub
 - 🔄 Offline functionality with service worker
 - 📦 Installable as a standalone app
 - 🎨 iOS-specific optimizations and styling
 - ⚡ Fast and responsive
+- 📊 Habit tracking with statistics
+- 📅 Calendar and planner views
+- 💾 Local and cloud storage options
 
 ## Project Structure
 
@@ -51,6 +55,18 @@ Track-Deez/
 
 2. Open your browser to `http://localhost:8000`
 
+### Cloud Storage Setup
+
+Track-Deez supports cloud storage via GitHub for cross-device synchronization!
+
+See [CLOUD-STORAGE-SETUP.md](CLOUD-STORAGE-SETUP.md) for detailed setup instructions.
+
+**Quick Start:**
+1. Create a GitHub Personal Access Token with `repo` scope
+2. Go to Settings > Storage Settings in the app
+3. Select "Cloud Storage (GitHub)" and enter your credentials
+4. Your data will automatically sync across all your devices
+
 ### Installing on iPhone
 
 1. Open the app in Safari
@@ -72,6 +88,18 @@ Track-Deez/
 - **Fast Loading**: Assets are cached for quick access
 - **Installable**: Can be installed on device home screen
 - **Responsive**: Works on all screen sizes
+- **Cloud Sync**: Optional GitHub-based cloud storage for cross-device sync
+
+## GitHub Pages Deployment
+
+The app includes a GitHub Actions workflow for automatic deployment to GitHub Pages.
+
+To enable:
+1. Go to your repository Settings > Pages
+2. Select "GitHub Actions" as the source
+3. Push to main branch to trigger deployment
+
+The workflow file is located at `.github/workflows/deploy.yml`
 
 ## Development
 

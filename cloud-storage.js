@@ -104,16 +104,34 @@ class GitHubStorageProvider extends CloudStorageProvider {
             }
 
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(`GitHub API error: ${error.message || response.statusText}`);
+                let errorMessage = response.statusText;
+                try {
+                    const error = await response.json();
+                    errorMessage = error.message || errorMessage;
+                } catch (e) {
+                    // Response is not JSON, use status text
+                }
+                throw new Error(`GitHub API error: ${errorMessage}`);
             }
 
             const fileData = await response.json();
             this.lastSha = fileData.sha;
 
-            // Decode base64 content
-            const content = atob(fileData.content);
-            return JSON.parse(content);
+            // Decode base64 content (handle Unicode properly)
+            try {
+                // Use TextDecoder for proper UTF-8 handling
+                const binaryString = atob(fileData.content.replace(/\s/g, ''));
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                const decoder = new TextDecoder('utf-8');
+                const content = decoder.decode(bytes);
+                return JSON.parse(content);
+            } catch (decodeError) {
+                console.error('Failed to decode content:', decodeError);
+                throw new Error('Failed to decode file content from GitHub');
+            }
         } catch (error) {
             console.error('Failed to load from GitHub:', error);
             throw error;
@@ -126,8 +144,17 @@ class GitHubStorageProvider extends CloudStorageProvider {
         }
 
         try {
-            // Convert data to JSON and encode as base64
-            const content = btoa(JSON.stringify(data, null, 2));
+            // Convert data to JSON and encode as base64 (handle Unicode properly)
+            const jsonString = JSON.stringify(data, null, 2);
+            // Use TextEncoder for proper UTF-8 handling
+            const encoder = new TextEncoder();
+            const bytes = encoder.encode(jsonString);
+            // Convert to binary string for btoa
+            let binaryString = '';
+            for (let i = 0; i < bytes.length; i++) {
+                binaryString += String.fromCharCode(bytes[i]);
+            }
+            const content = btoa(binaryString);
 
             // Prepare the request body
             const body = {
@@ -155,8 +182,14 @@ class GitHubStorageProvider extends CloudStorageProvider {
             );
 
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(`GitHub API error: ${error.message || response.statusText}`);
+                let errorMessage = response.statusText;
+                try {
+                    const error = await response.json();
+                    errorMessage = error.message || errorMessage;
+                } catch (e) {
+                    // Response is not JSON, use status text
+                }
+                throw new Error(`GitHub API error: ${errorMessage}`);
             }
 
             const result = await response.json();

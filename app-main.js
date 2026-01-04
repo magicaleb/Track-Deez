@@ -193,19 +193,19 @@ class DataManager {
     }
 
     async saveData() {
-        // Save to cloud storage if enabled
+        // Save to cloud storage if enabled, then also save locally as backup
         if (this.cloudStorageManager.isCloudMode() && this.cloudStorageManager.isConfigured()) {
             try {
                 console.log('Saving data to cloud storage...');
                 await this.cloudStorageManager.uploadData(this.data);
                 console.log('Data saved to cloud storage');
-                // Also save locally as backup
             } catch (error) {
                 console.error('Failed to save to cloud storage:', error);
-                // Continue to save locally
+                // Continue to save locally even if cloud save fails
             }
         }
 
+        // Always save locally (as primary storage or as backup for cloud mode)
         if (!this.useIndexedDB) {
             localStorage.setItem('trackDeezData', JSON.stringify(this.data));
             return;

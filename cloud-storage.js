@@ -360,30 +360,4 @@ class CloudStorageManager {
         localStorage.removeItem('cloudStorageConfig');
         this.setStorageMode('local');
     }
-
-    // Auto-sync functionality
-    enableAutoSync(intervalMinutes = 5) {
-        if (this.autoSyncInterval) {
-            clearInterval(this.autoSyncInterval);
-        }
-
-        this.autoSyncInterval = setInterval(async () => {
-            if (this.isCloudMode() && this.isConfigured() && !this.syncInProgress) {
-                try {
-                    console.log('Auto-syncing data...');
-                    // This would need to be called from the app with actual data
-                    // For now, just log
-                } catch (error) {
-                    console.error('Auto-sync failed:', error);
-                }
-            }
-        }, intervalMinutes * 60 * 1000);
-    }
-
-    disableAutoSync() {
-        if (this.autoSyncInterval) {
-            clearInterval(this.autoSyncInterval);
-            this.autoSyncInterval = null;
-        }
-    }
 }

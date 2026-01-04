@@ -11,7 +11,9 @@ class DataManager {
             habits: [],
             trackingFields: [],
             days: {}, // key: YYYY-MM-DD, value: { habits: {}, tracking: {} }
-            plannerEvents: [] // array of event objects
+            plannerEvents: [], // array of daily planner event objects
+            events: [], // array of calendar event objects
+            templates: [] // array of event template objects
         };
         this.dbManager = new DBManager();
         this.useIndexedDB = false;
@@ -139,6 +141,14 @@ class DataManager {
             const plannerEvents = await this.dbManager.getAll('plannerEvents');
             this.data.plannerEvents = plannerEvents || [];
 
+            // Load events
+            const events = await this.dbManager.getAll('events');
+            this.data.events = events || [];
+
+            // Load templates
+            const templates = await this.dbManager.getAll('templates');
+            this.data.templates = templates || [];
+
             console.log('Data loaded from IndexedDB');
         } catch (error) {
             console.error('Error loading data from IndexedDB:', error);
@@ -147,7 +157,9 @@ class DataManager {
                 habits: [],
                 trackingFields: [],
                 days: {},
-                plannerEvents: []
+                plannerEvents: [],
+                events: [],
+                templates: []
             };
         }
     }
@@ -175,6 +187,12 @@ class DataManager {
 
             // Save planner events
             await this.dbManager.putAll('plannerEvents', this.data.plannerEvents);
+
+            // Save events
+            await this.dbManager.putAll('events', this.data.events);
+
+            // Save templates
+            await this.dbManager.putAll('templates', this.data.templates);
 
             console.log('Data saved to IndexedDB');
         } catch (error) {
@@ -443,9 +461,266 @@ class DataManager {
             habits: [],
             trackingFields: [],
             days: {},
-            plannerEvents: []
+            plannerEvents: [],
+            events: [],
+            templates: []
         };
         await this.saveData();
+    }
+
+    // Events
+    async addEvent(name, description, date, startTime, duration, recurrence = null) {
+        const event = {
+            id: Date.now().toString(),
+            name,
+            description,
+            date, // YYYY-MM-DD format for one-time events
+            startTime, // HH:MM format
+            duration, // in minutes
+            recurrence, // null for one-time events, object for recurring
+            createdAt: new Date().toISOString()
+        };
+        this.data.events.push(event);
+        await this.saveData();
+        return event;
+    }
+
+    async updateEvent(id, name, description, date, startTime, duration, recurrence = null, updateAll = true) {
+        const eventIndex = this.data.events.findIndex(e => e.id === id);
+        if (eventIndex !== -1) {
+            if (updateAll) {
+                // Update the entire event series
+                this.data.events[eventIndex] = {
+                    ...this.data.events[eventIndex],
+                    name,
+                    description,
+                    date,
+                    startTime,
+                    duration,
+                    recurrence
+                };
+            } else {
+                // Create exception for this occurrence - add as new event without recurrence
+                const newEvent = {
+                    id: Date.now().toString(),
+                    name,
+                    description,
+                    date,
+                    startTime,
+                    duration,
+                    recurrence: null,
+                    createdAt: new Date().toISOString(),
+                    parentEventId: id // Track that this is an exception
+                };
+                this.data.events.push(newEvent);
+            }
+            await this.saveData();
+            return this.data.events[eventIndex];
+        }
+        return null;
+    }
+
+    async deleteEvent(id, deleteAll = true) {
+        if (deleteAll) {
+            this.data.events = this.data.events.filter(e => e.id !== id);
+        } else {
+            // For single occurrence deletion, we'd need to add to an exclusion list
+            // For now, simplified implementation
+            this.data.events = this.data.events.filter(e => e.id !== id);
+        }
+        await this.saveData();
+    }
+
+    // Templates
+    async addTemplate(name, description, duration) {
+        const template = {
+            id: Date.now().toString(),
+            name,
+            description,
+            duration, // in minutes
+            createdAt: new Date().toISOString()
+        };
+        this.data.templates.push(template);
+        await this.saveData();
+        return template;
+    }
+
+    async updateTemplate(id, name, description, duration) {
+        const templateIndex = this.data.templates.findIndex(t => t.id === id);
+        if (templateIndex !== -1) {
+            this.data.templates[templateIndex] = {
+                ...this.data.templates[templateIndex],
+                name,
+                description,
+                duration
+            };
+            await this.saveData();
+            return this.data.templates[templateIndex];
+        }
+        return null;
+    }
+
+    async deleteTemplate(id) {
+        this.data.templates = this.data.templates.filter(t => t.id !== id);
+        await this.saveData();
+    }
+
+    // Helper method to get events for a specific date (including recurring)
+    getEventsForDate(date) {
+        const dateStr = this.formatDate(date);
+        const events = [];
+
+        this.data.events.forEach(event => {
+            if (event.recurrence) {
+                // Check if this recurring event occurs on this date
+                if (this.eventOccursOnDate(event, date)) {
+                    events.push({ ...event, isRecurring: true });
+                }
+            } else if (event.date === dateStr) {
+                // One-time event
+                events.push({ ...event, isRecurring: false });
+            }
+        });
+
+        return events;
+    }
+
+    // Check if a recurring event occurs on a specific date
+    eventOccursOnDate(event, date) {
+        if (!event.recurrence) return false;
+
+        const checkDate = new Date(date);
+        const eventStartDate = new Date(event.date);
+        
+        // Event hasn't started yet
+        if (checkDate < eventStartDate) return false;
+
+        // Check end date
+        if (event.recurrence.endDate) {
+            const endDate = new Date(event.recurrence.endDate);
+            if (checkDate > endDate) return false;
+        }
+
+        const recurrence = event.recurrence;
+        const daysDiff = Math.floor((checkDate - eventStartDate) / (1000 * 60 * 60 * 24));
+
+        switch (recurrence.type) {
+            case 'daily':
+                if (daysDiff % recurrence.interval === 0) {
+                    // Check occurrences limit
+                    if (recurrence.occurrences) {
+                        const occurrenceNumber = Math.floor(daysDiff / recurrence.interval) + 1;
+                        return occurrenceNumber <= recurrence.occurrences;
+                    }
+                    return true;
+                }
+                return false;
+
+            case 'weekly':
+                if (recurrence.daysOfWeek && recurrence.daysOfWeek.length > 0) {
+                    const weeksDiff = Math.floor(daysDiff / 7);
+                    if (weeksDiff % recurrence.interval === 0) {
+                        const dayOfWeek = checkDate.getDay();
+                        if (recurrence.daysOfWeek.includes(dayOfWeek)) {
+                            if (recurrence.occurrences) {
+                                // Count occurrences up to this date without recursion
+                                let count = 0;
+                                for (let d = new Date(eventStartDate); d <= checkDate; d.setDate(d.getDate() + 1)) {
+                                    const dWeeksDiff = Math.floor((d - eventStartDate) / (1000 * 60 * 60 * 24 * 7));
+                                    if (dWeeksDiff % recurrence.interval === 0 && recurrence.daysOfWeek.includes(d.getDay())) {
+                                        count++;
+                                    }
+                                }
+                                return count <= recurrence.occurrences;
+                            }
+                            return true;
+                        }
+                    }
+                }
+                return false;
+
+            case 'monthly':
+                const monthsDiff = (checkDate.getFullYear() - eventStartDate.getFullYear()) * 12 
+                                 + (checkDate.getMonth() - eventStartDate.getMonth());
+                
+                if (monthsDiff % recurrence.interval === 0) {
+                    if (recurrence.dayOfMonth) {
+                        // Specific day of month
+                        if (checkDate.getDate() === recurrence.dayOfMonth) {
+                            if (recurrence.occurrences) {
+                                const occurrenceNumber = Math.floor(monthsDiff / recurrence.interval) + 1;
+                                return occurrenceNumber <= recurrence.occurrences;
+                            }
+                            return true;
+                        }
+                    } else if (recurrence.monthlyPattern) {
+                        // Pattern like "2nd Tuesday" or "last Friday"
+                        const pattern = recurrence.monthlyPattern;
+                        let targetDate;
+                        
+                        if (pattern.week === -1) {
+                            // Last occurrence of the day in the month
+                            const lastDayOfMonth = new Date(checkDate.getFullYear(), checkDate.getMonth() + 1, 0);
+                            let lastOccurrence = lastDayOfMonth.getDate();
+                            
+                            // Walk backward to find the last occurrence of the target day
+                            while (new Date(checkDate.getFullYear(), checkDate.getMonth(), lastOccurrence).getDay() !== pattern.dayOfWeek) {
+                                lastOccurrence--;
+                            }
+                            targetDate = lastOccurrence;
+                        } else {
+                            // Nth occurrence of the day
+                            const firstDayOfMonth = new Date(checkDate.getFullYear(), checkDate.getMonth(), 1);
+                            const firstDayOfWeek = firstDayOfMonth.getDay();
+                            const daysUntilTarget = (pattern.dayOfWeek - firstDayOfWeek + 7) % 7;
+                            targetDate = 1 + daysUntilTarget + (pattern.week - 1) * 7;
+                            
+                            // Validate that the date exists in this month
+                            const testDate = new Date(checkDate.getFullYear(), checkDate.getMonth(), targetDate);
+                            if (testDate.getMonth() !== checkDate.getMonth()) {
+                                return false; // Date doesn't exist in this month
+                            }
+                        }
+                        
+                        if (checkDate.getDate() === targetDate) {
+                            if (recurrence.occurrences) {
+                                const occurrenceNumber = Math.floor(monthsDiff / recurrence.interval) + 1;
+                                return occurrenceNumber <= recurrence.occurrences;
+                            }
+                            return true;
+                        }
+                    }
+                }
+                return false;
+
+            case 'yearly':
+                const yearsDiff = checkDate.getFullYear() - eventStartDate.getFullYear();
+                if (yearsDiff % recurrence.interval === 0) {
+                    if (checkDate.getMonth() === eventStartDate.getMonth() 
+                        && checkDate.getDate() === eventStartDate.getDate()) {
+                        if (recurrence.occurrences) {
+                            const occurrenceNumber = Math.floor(yearsDiff / recurrence.interval) + 1;
+                            return occurrenceNumber <= recurrence.occurrences;
+                        }
+                        return true;
+                    }
+                }
+                return false;
+
+            case 'custom':
+                // Custom is handled like daily with custom interval
+                if (daysDiff % recurrence.interval === 0) {
+                    if (recurrence.occurrences) {
+                        const occurrenceNumber = Math.floor(daysDiff / recurrence.interval) + 1;
+                        return occurrenceNumber <= recurrence.occurrences;
+                    }
+                    return true;
+                }
+                return false;
+
+            default:
+                return false;
+        }
     }
 }
 
@@ -1179,6 +1454,206 @@ class HabitTrackerApp {
         document.getElementById('event-title').focus();
     }
 
+    updateEventEndTime() {
+        const startTime = document.getElementById('event-start-time').value;
+        const duration = parseInt(document.getElementById('event-duration').value);
+        const display = document.getElementById('event-end-time-display');
+        
+        if (startTime && duration && duration > 0) {
+            const [hours, minutes] = startTime.split(':').map(Number);
+            const totalMinutes = hours * 60 + minutes + duration;
+            const endHours = Math.floor(totalMinutes / 60) % 24;
+            const endMinutes = totalMinutes % 60;
+            const endTime = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+            display.textContent = `Ends at ${endTime}`;
+        } else if (duration === -1) {
+            display.textContent = 'All day event';
+        } else {
+            display.textContent = '';
+        }
+    }
+
+    async saveEvent() {
+        const form = document.getElementById('event-form');
+        const name = document.getElementById('event-name').value.trim();
+        const description = document.getElementById('event-description').value.trim();
+        const date = document.getElementById('event-date').value;
+        const startTime = document.getElementById('event-start-time').value;
+        const durationInput = document.getElementById('event-duration').value;
+        const duration = durationInput === '' ? -1 : parseInt(durationInput);
+        const isRecurring = document.getElementById('event-is-recurring').checked;
+        
+        if (!name || !date || !startTime) {
+            alert('Please fill in all required fields');
+            return;
+        }
+        
+        let recurrence = null;
+        if (isRecurring) {
+            const type = document.getElementById('recurrence-type').value;
+            const interval = parseInt(document.getElementById('recurrence-interval').value);
+            
+            recurrence = { type, interval };
+            
+            if (type === 'weekly') {
+                const daysOfWeek = Array.from(
+                    document.querySelectorAll('#recurrence-days-group input[type="checkbox"]:checked')
+                ).map(cb => parseInt(cb.value));
+                recurrence.daysOfWeek = daysOfWeek;
+            }
+            
+            if (type === 'monthly') {
+                const monthlyType = document.getElementById('recurrence-monthly-type').value;
+                if (monthlyType === 'date') {
+                    recurrence.dayOfMonth = parseInt(document.getElementById('recurrence-day-of-month').value);
+                } else {
+                    recurrence.monthlyPattern = {
+                        week: parseInt(document.getElementById('recurrence-pattern-week').value),
+                        dayOfWeek: parseInt(document.getElementById('recurrence-pattern-day').value)
+                    };
+                }
+            }
+            
+            const endType = document.getElementById('recurrence-end-type').value;
+            if (endType === 'on') {
+                recurrence.endDate = document.getElementById('recurrence-end-date').value;
+            } else if (endType === 'after') {
+                recurrence.occurrences = parseInt(document.getElementById('recurrence-occurrences').value);
+            }
+        }
+        
+        const editingId = form.dataset.editingId;
+        if (editingId) {
+            await this.dataManager.updateEvent(editingId, name, description, date, startTime, duration, recurrence);
+        } else {
+            await this.dataManager.addEvent(name, description, date, startTime, duration, recurrence);
+        }
+        
+        document.getElementById('event-modal').classList.remove('active');
+        form.reset();
+        document.getElementById('recurrence-fields').style.display = 'none';
+        this.renderTodayView();
+        this.renderCalendarView();
+    }
+
+    async saveEventAsTemplate() {
+        const name = document.getElementById('event-name').value.trim();
+        const description = document.getElementById('event-description').value.trim();
+        const durationInput = document.getElementById('event-duration').value;
+        const duration = durationInput === '' ? -1 : parseInt(durationInput);
+        
+        if (!name) {
+            alert('Please enter an event name first');
+            return;
+        }
+        
+        await this.dataManager.addTemplate(name, description, duration);
+        alert('Template saved!');
+        this.renderSettingsView();
+    }
+
+    showTemplateModal(templateId = null) {
+        const modal = document.getElementById('template-modal');
+        const form = document.getElementById('template-form');
+        const title = document.getElementById('template-modal-title');
+        
+        if (templateId) {
+            // Edit mode
+            const template = this.dataManager.data.templates.find(t => t.id === templateId);
+            if (template) {
+                title.textContent = 'Edit Template';
+                document.getElementById('template-name').value = template.name;
+                document.getElementById('template-description').value = template.description || '';
+                document.getElementById('template-duration').value = template.duration === -1 ? '' : template.duration;
+                form.dataset.editingId = templateId;
+            }
+        } else {
+            // Add mode
+            title.textContent = 'Add Template';
+            form.reset();
+            delete form.dataset.editingId;
+        }
+        
+        modal.classList.add('active');
+        document.getElementById('template-name').focus();
+    }
+
+    async saveTemplate() {
+        const form = document.getElementById('template-form');
+        const name = document.getElementById('template-name').value.trim();
+        const description = document.getElementById('template-description').value.trim();
+        const durationInput = document.getElementById('template-duration').value;
+        const duration = durationInput === '' ? -1 : parseInt(durationInput);
+        
+        if (!name) {
+            alert('Please enter a template name');
+            return;
+        }
+        
+        const editingId = form.dataset.editingId;
+        if (editingId) {
+            await this.dataManager.updateTemplate(editingId, name, description, duration);
+        } else {
+            await this.dataManager.addTemplate(name, description, duration);
+        }
+        
+        document.getElementById('template-modal').classList.remove('active');
+        form.reset();
+        this.renderSettingsView();
+    }
+
+    showTemplatePicker() {
+        const modal = document.getElementById('template-picker-modal');
+        const list = document.getElementById('template-picker-list');
+        
+        if (this.dataManager.data.templates.length === 0) {
+            list.innerHTML = '<div class="empty-state"><p>No templates available. Create one in Settings.</p></div>';
+        } else {
+            list.innerHTML = this.dataManager.data.templates.map(template => {
+                const durationDisplay = template.duration === -1 ? 'All day' : 
+                    template.duration >= 60 ? `${Math.floor(template.duration / 60)} hr ${template.duration % 60 > 0 ? template.duration % 60 + ' min' : ''}`.trim() :
+                    `${template.duration} min`;
+                
+                return `
+                    <div class="template-item" data-template-id="${template.id}">
+                        <div class="template-name">${template.name}</div>
+                        ${template.description ? `<div class="template-description">${template.description}</div>` : ''}
+                        <div class="template-duration">Duration: ${durationDisplay}</div>
+                    </div>
+                `;
+            }).join('');
+            
+            // Add click handlers
+            list.querySelectorAll('.template-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const templateId = item.dataset.templateId;
+                    this.applyTemplate(templateId);
+                });
+            });
+        }
+        
+        modal.classList.add('active');
+    }
+
+    applyTemplate(templateId) {
+        const template = this.dataManager.data.templates.find(t => t.id === templateId);
+        if (template) {
+            document.getElementById('event-name').value = template.name;
+            document.getElementById('event-description').value = template.description || '';
+            document.getElementById('event-duration').value = template.duration === -1 ? '' : template.duration;
+            
+            // Highlight the active preset button
+            const duration = template.duration;
+            document.querySelectorAll('#event-form .preset-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.duration) === duration);
+            });
+            
+            this.updateEventEndTime();
+        }
+        
+        document.getElementById('template-picker-modal').classList.remove('active');
+    }
+
     // Stats View
     renderStatsView() {
         const range = this.statsRange;
@@ -1724,6 +2199,146 @@ class HabitTrackerApp {
         document.getElementById('planner-event-modal').onclick = (e) => {
             if (e.target.id === 'planner-event-modal') {
                 document.getElementById('planner-event-modal').classList.remove('active');
+            }
+        };
+
+        // Event modal
+        document.getElementById('close-event-modal').onclick = () => {
+            document.getElementById('event-modal').classList.remove('active');
+        };
+
+        document.getElementById('cancel-event').onclick = () => {
+            document.getElementById('event-modal').classList.remove('active');
+        };
+
+        // Use template button
+        document.getElementById('use-template-btn').onclick = () => {
+            this.showTemplatePicker();
+        };
+
+        document.getElementById('event-is-recurring').onchange = (e) => {
+            const recurrenceFields = document.getElementById('recurrence-fields');
+            recurrenceFields.style.display = e.target.checked ? 'block' : 'none';
+        };
+
+        // Recurrence type change handler
+        document.getElementById('recurrence-type').onchange = (e) => {
+            const type = e.target.value;
+            const intervalUnit = document.getElementById('recurrence-interval-unit');
+            const daysGroup = document.getElementById('recurrence-days-group');
+            const monthlyGroup = document.getElementById('recurrence-monthly-group');
+            
+            // Update interval unit text
+            switch(type) {
+                case 'daily':
+                    intervalUnit.textContent = 'day(s)';
+                    break;
+                case 'weekly':
+                    intervalUnit.textContent = 'week(s)';
+                    break;
+                case 'monthly':
+                    intervalUnit.textContent = 'month(s)';
+                    break;
+                case 'yearly':
+                    intervalUnit.textContent = 'year(s)';
+                    break;
+                case 'custom':
+                    intervalUnit.textContent = 'day(s)';
+                    break;
+            }
+            
+            // Show/hide relevant fields
+            daysGroup.style.display = type === 'weekly' ? 'block' : 'none';
+            monthlyGroup.style.display = type === 'monthly' ? 'block' : 'none';
+        };
+
+        // Monthly recurrence type handler
+        document.getElementById('recurrence-monthly-type').onchange = (e) => {
+            const monthlyType = e.target.value;
+            document.getElementById('recurrence-day-of-month-group').style.display = 
+                monthlyType === 'date' ? 'block' : 'none';
+            document.getElementById('recurrence-pattern-group').style.display = 
+                monthlyType === 'pattern' ? 'block' : 'none';
+        };
+
+        // Recurrence end type handler
+        document.getElementById('recurrence-end-type').onchange = (e) => {
+            const endType = e.target.value;
+            document.getElementById('recurrence-end-date-group').style.display = 
+                endType === 'on' ? 'block' : 'none';
+            document.getElementById('recurrence-occurrences-group').style.display = 
+                endType === 'after' ? 'block' : 'none';
+        };
+
+        // Duration preset handlers for event modal
+        document.querySelectorAll('#event-form .preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const duration = parseInt(btn.dataset.duration);
+                document.getElementById('event-duration').value = duration === -1 ? '' : duration;
+                document.querySelectorAll('#event-form .preset-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                this.updateEventEndTime();
+            });
+        });
+
+        // Update end time display when start time or duration changes
+        document.getElementById('event-start-time').oninput = () => this.updateEventEndTime();
+        document.getElementById('event-duration').oninput = () => this.updateEventEndTime();
+
+        // Save as template button
+        document.getElementById('save-as-template-btn').onclick = () => {
+            this.saveEventAsTemplate();
+        };
+
+        document.getElementById('event-form').onsubmit = async (e) => {
+            e.preventDefault();
+            await this.saveEvent();
+        };
+
+        document.getElementById('event-modal').onclick = (e) => {
+            if (e.target.id === 'event-modal') {
+                document.getElementById('event-modal').classList.remove('active');
+            }
+        };
+
+        // Template modal
+        document.getElementById('close-template-modal').onclick = () => {
+            document.getElementById('template-modal').classList.remove('active');
+        };
+
+        document.getElementById('cancel-template').onclick = () => {
+            document.getElementById('template-modal').classList.remove('active');
+        };
+
+        // Duration preset handlers for template modal
+        document.querySelectorAll('#template-form .preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const duration = parseInt(btn.dataset.duration);
+                document.getElementById('template-duration').value = duration === -1 ? '' : duration;
+                document.querySelectorAll('#template-form .preset-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+
+        document.getElementById('template-form').onsubmit = async (e) => {
+            e.preventDefault();
+            await this.saveTemplate();
+        };
+
+        document.getElementById('template-modal').onclick = (e) => {
+            if (e.target.id === 'template-modal') {
+                document.getElementById('template-modal').classList.remove('active');
+            }
+        };
+
+        // Template picker modal
+        document.getElementById('close-template-picker').onclick = () => {
+            document.getElementById('template-picker-modal').classList.remove('active');
+        };
+
+        document.getElementById('template-picker-modal').onclick = (e) => {
+            if (e.target.id === 'template-picker-modal') {
+                document.getElementById('template-picker-modal').classList.remove('active');
             }
         };
     }

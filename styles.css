@@ -1227,3 +1227,114 @@ button, .habit-item, .calendar-day {
         margin-bottom: 0.5rem;
     }
 }
+
+/* Duration Presets */
+.duration-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.preset-btn {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: 6px;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.preset-btn:hover {
+    border-color: var(--primary-color);
+    background: var(--primary-light);
+}
+
+.preset-btn.active {
+    border-color: var(--primary-color);
+    background: var(--primary-color);
+    color: white;
+}
+
+/* Recurrence Fields */
+#recurrence-fields {
+    background: var(--background);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 0.5rem;
+}
+
+#recurrence-fields .form-group {
+    margin-bottom: 1rem;
+}
+
+#recurrence-fields .form-group:last-child {
+    margin-bottom: 0;
+}
+
+.days-checkboxes {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.days-checkboxes label {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.875rem;
+}
+
+.days-checkboxes label:has(input:checked) {
+    background: var(--primary-light);
+    border-color: var(--primary-color);
+}
+
+/* Template List */
+.template-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.template-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.template-item:hover {
+    border-color: var(--primary-color);
+    background: var(--background);
+}
+
+.template-item:active {
+    transform: scale(0.98);
+}
+
+.template-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    display: block;
+}
+
+.template-description {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+    display: block;
+}
+
+.template-duration {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+}

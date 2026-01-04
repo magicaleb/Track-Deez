@@ -11,8 +11,9 @@ class DataManager {
             habits: [],
             trackingFields: [],
             days: {}, // key: YYYY-MM-DD, value: { habits: {}, tracking: {} }
-            events: [],
-            templates: []
+            plannerEvents: [], // array of daily planner event objects
+            events: [], // array of calendar event objects
+            templates: [] // array of event template objects
         };
         this.dbManager = new DBManager();
         this.useIndexedDB = false;
@@ -83,6 +84,12 @@ class DataManager {
                 console.log(`Migrated ${daysArray.length} days of data`);
             }
 
+            // Migrate planner events
+            if (data.plannerEvents && data.plannerEvents.length > 0) {
+                await this.dbManager.putAll('plannerEvents', data.plannerEvents);
+                console.log(`Migrated ${data.plannerEvents.length} planner events`);
+            }
+
             // Remove localStorage data after successful migration
             localStorage.removeItem('trackDeezData');
             console.log('Migration complete! localStorage data removed.');
@@ -95,7 +102,13 @@ class DataManager {
     loadDataFromLocalStorage() {
         const data = localStorage.getItem('trackDeezData');
         if (data) {
-            this.data = JSON.parse(data);
+            const parsedData = JSON.parse(data);
+            this.data = {
+                habits: parsedData.habits || [],
+                trackingFields: parsedData.trackingFields || [],
+                days: parsedData.days || {},
+                plannerEvents: parsedData.plannerEvents || []
+            };
         }
     }
 
@@ -124,6 +137,10 @@ class DataManager {
                 };
             });
 
+            // Load planner events
+            const plannerEvents = await this.dbManager.getAll('plannerEvents');
+            this.data.plannerEvents = plannerEvents || [];
+
             // Load events
             const events = await this.dbManager.getAll('events');
             this.data.events = events || [];
@@ -140,6 +157,7 @@ class DataManager {
                 habits: [],
                 trackingFields: [],
                 days: {},
+                plannerEvents: [],
                 events: [],
                 templates: []
             };
@@ -166,6 +184,9 @@ class DataManager {
                 tracking: this.data.days[date].tracking || {}
             }));
             await this.dbManager.putAll('days', daysArray);
+
+            // Save planner events
+            await this.dbManager.putAll('plannerEvents', this.data.plannerEvents);
 
             // Save events
             await this.dbManager.putAll('events', this.data.events);
@@ -303,6 +324,147 @@ class DataManager {
     async deleteTrackingField(id) {
         this.data.trackingFields = this.data.trackingFields.filter(f => f.id !== id);
         // Do NOT clean up tracking data from days - preserve historical data
+        await this.saveData();
+    }
+
+    // Day Data
+    getDayData(date) {
+        const dateStr = this.formatDate(date);
+        if (!this.data.days[dateStr]) {
+            this.data.days[dateStr] = { habits: {}, tracking: {} };
+        }
+        return this.data.days[dateStr];
+    }
+
+    async setHabitComplete(date, habitId, completed) {
+        const dateStr = this.formatDate(date);
+        const dayData = this.getDayData(date);
+        
+        // Check if it's a build-up habit
+        const habit = this.data.habits.find(h => h.id === habitId);
+        if (habit && habit.isBuildUpHabit && habit.buildUpConfig) {
+            const config = habit.buildUpConfig;
+            
+            if (completed) {
+                // Increment streak
+                config.currentStreak = (config.currentStreak || 0) + 1;
+                
+                // Check if we've reached the threshold for increment
+                if (config.currentStreak >= config.daysForIncrement) {
+                    // Increase current value, but not exceeding goal
+                    config.currentValue = Math.min(
+                        config.currentValue + config.incrementValue,
+                        config.goalValue
+                    );
+                    // Reset streak
+                    config.currentStreak = 0;
+                }
+            } else {
+                // Reset streak when unchecking
+                config.currentStreak = 0;
+            }
+            
+            // Update the habit in the data structure
+            const habitIndex = this.data.habits.findIndex(h => h.id === habitId);
+            if (habitIndex !== -1) {
+                this.data.habits[habitIndex].buildUpConfig = config;
+            }
+        }
+        
+        dayData.habits[habitId] = completed;
+        await this.saveData();
+    }
+
+    async setTracking(date, fieldId, value) {
+        const dateStr = this.formatDate(date);
+        const dayData = this.getDayData(date);
+        dayData.tracking[fieldId] = value;
+        await this.saveData();
+    }
+
+    getDayStatus(date) {
+        // Check if date is in the future
+        // Future dates have no data yet, so they should be marked as gray
+        // This prevents the calendar from showing completion status for dates that haven't occurred
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const checkDate = new Date(date);
+        checkDate.setHours(0, 0, 0, 0);
+        
+        if (checkDate > today) {
+            return 'gray'; // Future dates have no data
+        }
+        
+        const dayData = this.getDayData(date);
+        // Only count non-archived habits
+        const activeHabits = this.data.habits.filter(h => !h.archived);
+        const totalHabits = activeHabits.length;
+        
+        if (totalHabits === 0) return 'gray';
+        
+        const completedHabits = activeHabits.filter(h => dayData.habits[h.id]).length;
+        
+        if (completedHabits === 0) return 'red';
+        if (completedHabits === totalHabits) return 'green';
+        return 'yellow';
+    }
+
+    formatDate(date) {
+        const d = new Date(date);
+        return d.toISOString().split('T')[0];
+    }
+
+    exportData() {
+        return JSON.stringify(this.data, null, 2);
+    }
+
+    async importData(importedData) {
+        try {
+            // Validate the structure
+            if (!importedData.habits || !importedData.trackingFields || !importedData.days) {
+                throw new Error('Invalid data format');
+            }
+
+            // Merge habits (avoid duplicates by name to prevent UI confusion)
+            // Note: This intentionally uses name matching to avoid duplicate visible entries
+            const existingHabitNames = new Set(this.data.habits.map(h => h.name));
+            importedData.habits.forEach(habit => {
+                if (!existingHabitNames.has(habit.name)) {
+                    this.data.habits.push(habit);
+                }
+            });
+
+            // Merge tracking fields (avoid duplicates by name to prevent UI confusion)
+            // Note: This intentionally uses name matching to avoid duplicate visible entries
+            const existingFieldNames = new Set(this.data.trackingFields.map(f => f.name));
+            importedData.trackingFields.forEach(field => {
+                if (!existingFieldNames.has(field.name)) {
+                    this.data.trackingFields.push(field);
+                }
+            });
+
+            // Merge day data (overwrite existing dates)
+            Object.keys(importedData.days).forEach(date => {
+                this.data.days[date] = importedData.days[date];
+            });
+
+            await this.saveData();
+            return { success: true };
+        } catch (error) {
+            console.error('Error importing data:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    async clearAllData() {
+        this.data = {
+            habits: [],
+            trackingFields: [],
+            days: {},
+            plannerEvents: [],
+            events: [],
+            templates: []
+        };
         await this.saveData();
     }
 
@@ -560,87 +722,63 @@ class DataManager {
                 return false;
         }
     }
+}
 
-    // Day Data
-    getDayData(date) {
-        const dateStr = this.formatDate(date);
-        if (!this.data.days[dateStr]) {
-            this.data.days[dateStr] = { habits: {}, tracking: {} };
-        }
-        return this.data.days[dateStr];
+// Planner Management
+class PlannerManager {
+    constructor(dataManager) {
+        this.dataManager = dataManager;
+        this.currentDate = new Date();
+        this.timeUpdateInterval = null;
+        this.startHour = 6;  // 6 AM
+        this.endHour = 23;   // 11 PM
     }
 
-    async setHabitComplete(date, habitId, completed) {
-        const dateStr = this.formatDate(date);
-        const dayData = this.getDayData(date);
-        
-        // Check if it's a build-up habit
-        const habit = this.data.habits.find(h => h.id === habitId);
-        if (habit && habit.isBuildUpHabit && habit.buildUpConfig) {
-            const config = habit.buildUpConfig;
-            
-            if (completed) {
-                // Increment streak
-                config.currentStreak = (config.currentStreak || 0) + 1;
-                
-                // Check if we've reached the threshold for increment
-                if (config.currentStreak >= config.daysForIncrement) {
-                    // Increase current value, but not exceeding goal
-                    config.currentValue = Math.min(
-                        config.currentValue + config.incrementValue,
-                        config.goalValue
-                    );
-                    // Reset streak
-                    config.currentStreak = 0;
-                }
-            } else {
-                // Reset streak when unchecking
-                config.currentStreak = 0;
-            }
-            
-            // Update the habit in the data structure
-            const habitIndex = this.data.habits.findIndex(h => h.id === habitId);
-            if (habitIndex !== -1) {
-                this.data.habits[habitIndex].buildUpConfig = config;
-            }
-        }
-        
-        dayData.habits[habitId] = completed;
-        await this.saveData();
+    // Event CRUD operations
+    async addEvent(date, startTime, endTime, title, category = 'other', notes = '') {
+        const event = {
+            id: crypto.randomUUID(),
+            date: this.formatDate(date),
+            startTime,
+            endTime,
+            title,
+            category,
+            notes,
+            createdAt: new Date().toISOString()
+        };
+        this.dataManager.data.plannerEvents.push(event);
+        await this.dataManager.saveData();
+        return event;
     }
 
-    async setTracking(date, fieldId, value) {
-        const dateStr = this.formatDate(date);
-        const dayData = this.getDayData(date);
-        dayData.tracking[fieldId] = value;
-        await this.saveData();
+    async updateEvent(id, startTime, endTime, title, category = 'other', notes = '') {
+        const eventIndex = this.dataManager.data.plannerEvents.findIndex(e => e.id === id);
+        if (eventIndex !== -1) {
+            const existingEvent = this.dataManager.data.plannerEvents[eventIndex];
+            this.dataManager.data.plannerEvents[eventIndex] = {
+                ...existingEvent,
+                startTime,
+                endTime,
+                title,
+                category,
+                notes
+            };
+            await this.dataManager.saveData();
+            return this.dataManager.data.plannerEvents[eventIndex];
+        }
+        return null;
     }
 
-    getDayStatus(date) {
-        // Check if date is in the future
-        // Future dates have no data yet, so they should be marked as gray
-        // This prevents the calendar from showing completion status for dates that haven't occurred
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const checkDate = new Date(date);
-        checkDate.setHours(0, 0, 0, 0);
-        
-        if (checkDate > today) {
-            return 'gray'; // Future dates have no data
-        }
-        
-        const dayData = this.getDayData(date);
-        // Only count non-archived habits
-        const activeHabits = this.data.habits.filter(h => !h.archived);
-        const totalHabits = activeHabits.length;
-        
-        if (totalHabits === 0) return 'gray';
-        
-        const completedHabits = activeHabits.filter(h => dayData.habits[h.id]).length;
-        
-        if (completedHabits === 0) return 'red';
-        if (completedHabits === totalHabits) return 'green';
-        return 'yellow';
+    async deleteEvent(id) {
+        this.dataManager.data.plannerEvents = this.dataManager.data.plannerEvents.filter(e => e.id !== id);
+        await this.dataManager.saveData();
+    }
+
+    getEventsForDate(date) {
+        const dateStr = this.formatDate(date);
+        return this.dataManager.data.plannerEvents
+            .filter(e => e.date === dateStr)
+            .sort((a, b) => a.startTime.localeCompare(b.startTime));
     }
 
     formatDate(date) {
@@ -651,77 +789,100 @@ class DataManager {
         return `${year}-${month}-${day}`;
     }
 
-    exportData() {
-        return JSON.stringify(this.data, null, 2);
+    // Time formatting utility
+    formatTime12h(hours, minutes) {
+        const hour12 = hours % 12 || 12;
+        const ampm = hours < 12 ? 'AM' : 'PM';
+        return `${hour12}:${String(minutes).padStart(2, '0')} ${ampm}`;
     }
 
-    async importData(importedData) {
-        try {
-            // Validate the structure
-            if (!importedData.habits || !importedData.trackingFields || !importedData.days) {
-                throw new Error('Invalid data format');
-            }
+    // Time utilities
+    timeToMinutes(timeStr) {
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        return hours * 60 + minutes;
+    }
 
-            // Merge habits (avoid duplicates by name to prevent UI confusion)
-            // Note: This intentionally uses name matching to avoid duplicate visible entries
-            const existingHabitNames = new Set(this.data.habits.map(h => h.name));
-            importedData.habits.forEach(habit => {
-                if (!existingHabitNames.has(habit.name)) {
-                    this.data.habits.push(habit);
-                }
-            });
+    minutesToTime(minutes) {
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+    }
 
-            // Merge tracking fields (avoid duplicates by name to prevent UI confusion)
-            // Note: This intentionally uses name matching to avoid duplicate visible entries
-            const existingFieldNames = new Set(this.data.trackingFields.map(f => f.name));
-            importedData.trackingFields.forEach(field => {
-                if (!existingFieldNames.has(field.name)) {
-                    this.data.trackingFields.push(field);
-                }
-            });
-
-            // Merge day data (overwrite existing dates)
-            Object.keys(importedData.days).forEach(date => {
-                this.data.days[date] = importedData.days[date];
-            });
-
-            // Merge events if present
-            if (importedData.events && Array.isArray(importedData.events)) {
-                const existingEventIds = new Set(this.data.events.map(e => e.id));
-                importedData.events.forEach(event => {
-                    if (!existingEventIds.has(event.id)) {
-                        this.data.events.push(event);
-                    }
-                });
-            }
-
-            // Merge templates if present
-            if (importedData.templates && Array.isArray(importedData.templates)) {
-                const existingTemplateIds = new Set(this.data.templates.map(t => t.id));
-                importedData.templates.forEach(template => {
-                    if (!existingTemplateIds.has(template.id)) {
-                        this.data.templates.push(template);
-                    }
-                });
-            }
-
-            await this.saveData();
-            return { success: true };
-        } catch (error) {
-            console.error('Error importing data:', error);
-            return { success: false, error: error.message };
+    getCurrentTimeInfo() {
+        const now = new Date();
+        const hours = now.getHours();
+        const minutes = now.getMinutes();
+        const totalMinutes = hours * 60 + minutes;
+        
+        // Calculate position relative to viewing window (startHour to endHour)
+        const startMinutes = this.startHour * 60;
+        const endMinutes = this.endHour * 60;
+        const viewRangeMinutes = endMinutes - startMinutes;
+        
+        if (totalMinutes < startMinutes || totalMinutes > endMinutes) {
+            return null; // Outside viewing hours
         }
+        
+        const minutesFromStart = totalMinutes - startMinutes;
+        const percentage = (minutesFromStart / viewRangeMinutes) * 100;
+        
+        return {
+            hours,
+            minutes,
+            totalMinutes,
+            percentage,
+            timeString: this.formatTime12h(hours, minutes)
+        };
     }
 
-    async clearAllData() {
-        this.data = {
-            habits: [],
-            trackingFields: [],
-            days: {},
-            events: [],
-            templates: []
+    isEventCurrent(event) {
+        const now = new Date();
+        const today = this.formatDate(now);
+        
+        if (event.date !== today) {
+            return false;
+        }
+        
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        const eventStart = this.timeToMinutes(event.startTime);
+        const eventEnd = this.timeToMinutes(event.endTime);
+        
+        return currentMinutes >= eventStart && currentMinutes < eventEnd;
+    }
+
+    isEventPast(event) {
+        const now = new Date();
+        const today = this.formatDate(now);
+        
+        if (event.date < today) {
+            return true;
+        }
+        
+        if (event.date > today) {
+            return false;
+        }
+        
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        const eventEnd = this.timeToMinutes(event.endTime);
+        
+        return currentMinutes >= eventEnd;
+    }
+
+    getEventPosition(event) {
+        const startMinutes = this.timeToMinutes(event.startTime);
+        const endMinutes = this.timeToMinutes(event.endTime);
+        const duration = endMinutes - startMinutes;
+        
+        const viewStartMinutes = this.startHour * 60;
+        const viewRangeMinutes = (this.endHour - this.startHour) * 60;
+        
+        const topPercentage = ((startMinutes - viewStartMinutes) / viewRangeMinutes) * 100;
+        const heightPercentage = (duration / viewRangeMinutes) * 100;
+        
+        return {
+            top: topPercentage,
+            height: heightPercentage
         };
-        await this.saveData();
     }
 }
 
@@ -729,6 +890,7 @@ class DataManager {
 class HabitTrackerApp {
     constructor() {
         this.dataManager = new DataManager();
+        this.plannerManager = new PlannerManager(this.dataManager);
         this.currentDate = new Date();
         this.currentView = 'today';
         this.calendarMonth = new Date();
@@ -745,6 +907,7 @@ class HabitTrackerApp {
         this.setupModals();
         this.renderTodayView();
         this.renderCalendarView();
+        this.renderPlannerView();
         this.renderStatsView();
         this.renderSettingsView();
         this.setupInstallPrompt();
@@ -761,6 +924,14 @@ class HabitTrackerApp {
     }
 
     switchView(view) {
+        // Clear planner interval when leaving planner view
+        if (this.currentView === 'planner' && view !== 'planner') {
+            if (this.plannerManager && this.plannerManager.timeUpdateInterval) {
+                clearInterval(this.plannerManager.timeUpdateInterval);
+                this.plannerManager.timeUpdateInterval = null;
+            }
+        }
+        
         // Update nav buttons
         document.querySelectorAll('.nav-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.view === view);
@@ -777,6 +948,7 @@ class HabitTrackerApp {
         // Refresh view
         if (view === 'today') this.renderTodayView();
         if (view === 'calendar') this.renderCalendarView();
+        if (view === 'planner') this.renderPlannerView();
         if (view === 'stats') this.renderStatsView();
         if (view === 'settings') this.renderSettingsView();
     }
@@ -792,50 +964,6 @@ class HabitTrackerApp {
         const status = this.dataManager.getDayStatus(this.currentDate);
         const statusIndicator = document.querySelector('.status-indicator');
         statusIndicator.className = `status-indicator ${status}`;
-
-        // Events list
-        const eventsList = document.getElementById('events-list');
-        const events = this.dataManager.getEventsForDate(this.currentDate);
-
-        if (events.length === 0) {
-            eventsList.innerHTML = '<div class="empty-state"><p>No events today.</p></div>';
-        } else {
-            // Sort events by start time
-            events.sort((a, b) => a.startTime.localeCompare(b.startTime));
-            
-            eventsList.innerHTML = events.map(event => {
-                const durationDisplay = event.duration === -1 ? 'All day' : 
-                    event.duration >= 60 ? `${Math.floor(event.duration / 60)}h ${event.duration % 60 > 0 ? event.duration % 60 + 'm' : ''}`.trim() :
-                    `${event.duration}m`;
-                
-                const timeDisplay = event.duration === -1 ? 'All day' : event.startTime;
-                
-                return `
-                    <div class="event-item" data-event-id="${event.id}">
-                        <div class="event-time">${timeDisplay}</div>
-                        <div class="event-info">
-                            <span class="event-name">${event.name}</span>
-                            ${event.description ? `<span class="event-description">${event.description}</span>` : ''}
-                            <div class="event-duration">${durationDisplay}</div>
-                            ${event.isRecurring ? '<span class="event-recurring-badge">🔄 Recurring</span>' : ''}
-                        </div>
-                    </div>
-                `;
-            }).join('');
-
-            // Add click handlers
-            eventsList.querySelectorAll('.event-item').forEach(item => {
-                item.addEventListener('click', () => {
-                    const eventId = item.dataset.eventId;
-                    this.showEventModal(eventId);
-                });
-            });
-        }
-
-        // Add event button handler
-        document.getElementById('add-event-btn').onclick = () => {
-            this.showEventModal(null, this.currentDate);
-        };
 
         // Habits list - only show non-archived habits
         const habitsList = document.getElementById('habits-list');
@@ -972,11 +1100,9 @@ class HabitTrackerApp {
             const date = new Date(this.calendarMonth.getFullYear(), this.calendarMonth.getMonth(), day);
             const status = this.dataManager.getDayStatus(date);
             const isToday = date.toDateString() === today.toDateString();
-            const events = this.dataManager.getEventsForDate(date);
-            const hasEvents = events.length > 0;
             
             html += `
-                <div class="calendar-day ${status} ${isToday ? 'current' : ''} ${hasEvents ? 'has-events' : ''}" data-date="${this.dataManager.formatDate(date)}">
+                <div class="calendar-day ${status} ${isToday ? 'current' : ''}" data-date="${this.dataManager.formatDate(date)}">
                     ${day}
                 </div>
             `;
@@ -1017,33 +1143,6 @@ class HabitTrackerApp {
         const status = this.dataManager.getDayStatus(date);
 
         let html = `<div class="day-status"><div class="status-indicator ${status}"></div></div>`;
-
-        // Events
-        const events = this.dataManager.getEventsForDate(date);
-        if (events.length > 0) {
-            html += '<h3>Events</h3>';
-            html += '<div class="events-list">';
-            events.sort((a, b) => a.startTime.localeCompare(b.startTime));
-            events.forEach(event => {
-                const durationDisplay = event.duration === -1 ? 'All day' : 
-                    event.duration >= 60 ? `${Math.floor(event.duration / 60)}h ${event.duration % 60 > 0 ? event.duration % 60 + 'm' : ''}`.trim() :
-                    `${event.duration}m`;
-                const timeDisplay = event.duration === -1 ? 'All day' : event.startTime;
-                
-                html += `
-                    <div class="event-item">
-                        <div class="event-time">${timeDisplay}</div>
-                        <div class="event-info">
-                            <span class="event-name">${event.name}</span>
-                            ${event.description ? `<span class="event-description">${event.description}</span>` : ''}
-                            <div class="event-duration">${durationDisplay}</div>
-                            ${event.isRecurring ? '<span class="event-recurring-badge">🔄 Recurring</span>' : ''}
-                        </div>
-                    </div>
-                `;
-            });
-            html += '</div>';
-        }
 
         // Habits - only show non-archived habits
         html += '<h3>Habits</h3>';
@@ -1103,6 +1202,456 @@ class HabitTrackerApp {
 
         modalBody.innerHTML = html;
         modal.classList.add('active');
+    }
+
+    // Planner View
+    renderPlannerView() {
+        // Update date display
+        const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        document.getElementById('planner-date').textContent = 
+            this.plannerManager.currentDate.toLocaleDateString('en-US', dateOptions);
+
+        // Render time column
+        this.renderTimeColumn();
+
+        // Render grid
+        this.renderPlannerGrid();
+
+        // Render events
+        this.renderPlannerEvents();
+
+        // Setup current time indicator
+        this.setupCurrentTimeIndicator();
+
+        // Setup navigation buttons (only once)
+        if (!this._plannerNavSetup) {
+            document.getElementById('planner-prev-day').onclick = () => {
+                this.plannerManager.currentDate.setDate(this.plannerManager.currentDate.getDate() - 1);
+                this.renderPlannerView();
+            };
+
+            document.getElementById('planner-next-day').onclick = () => {
+                this.plannerManager.currentDate.setDate(this.plannerManager.currentDate.getDate() + 1);
+                this.renderPlannerView();
+            };
+
+            document.getElementById('planner-today').onclick = () => {
+                this.plannerManager.currentDate = new Date();
+                this.renderPlannerView();
+            };
+            
+            this._plannerNavSetup = true;
+        }
+    }
+
+    renderTimeColumn() {
+        const timeColumn = document.getElementById('time-column');
+        let html = '';
+        
+        for (let hour = this.plannerManager.startHour; hour <= this.plannerManager.endHour; hour++) {
+            const time12h = hour % 12 || 12;
+            const ampm = hour < 12 ? 'AM' : 'PM';
+            html += `<div class="time-slot">${time12h} ${ampm}</div>`;
+        }
+        
+        timeColumn.innerHTML = html;
+    }
+
+    renderPlannerGrid() {
+        const grid = document.getElementById('planner-grid');
+        let html = '';
+        
+        const totalSlots = (this.plannerManager.endHour - this.plannerManager.startHour + 1) * 2;
+        
+        for (let i = 0; i < totalSlots; i++) {
+            const hour = this.plannerManager.startHour + Math.floor(i / 2);
+            const minute = (i % 2) * 30;
+            const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+            const isHalfHour = i % 2 === 1;
+            
+            html += `<div class="grid-slot ${isHalfHour ? 'half-hour' : ''}" data-time="${timeStr}"></div>`;
+        }
+        
+        grid.innerHTML = html;
+
+        // Use event delegation for click handlers
+        if (!this._plannerGridClickDelegated) {
+            grid.addEventListener('click', (evt) => {
+                const slot = evt.target.closest('.grid-slot');
+                if (!slot || !grid.contains(slot)) {
+                    return;
+                }
+                const startTime = slot.dataset.time;
+                this.showPlannerEventModal(null, startTime);
+            });
+            this._plannerGridClickDelegated = true;
+        }
+    }
+
+    renderPlannerEvents() {
+        const eventsContainer = document.getElementById('planner-events');
+        const events = this.plannerManager.getEventsForDate(this.plannerManager.currentDate);
+        
+        // Clear existing events
+        eventsContainer.innerHTML = '';
+        
+        if (events.length === 0) {
+            return;
+        }
+        
+        // Safely render events without injecting unescaped HTML
+        events.forEach(event => {
+            const position = this.plannerManager.getEventPosition(event);
+            const isCurrent = this.plannerManager.isEventCurrent(event);
+            const isPast = this.plannerManager.isEventPast(event);
+            
+            let statusClass = '';
+            if (isCurrent) statusClass = 'current';
+            else if (isPast) statusClass = 'past';
+            
+            const eventEl = document.createElement('div');
+            eventEl.className = `planner-event category-${event.category} ${statusClass}`;
+            eventEl.dataset.eventId = event.id;
+            eventEl.style.top = `${position.top}%`;
+            eventEl.style.height = `${position.height}%`;
+            
+            const titleEl = document.createElement('div');
+            titleEl.className = 'event-title';
+            titleEl.textContent = event.title;
+            eventEl.appendChild(titleEl);
+            
+            const timeEl = document.createElement('div');
+            timeEl.className = 'event-time';
+            timeEl.textContent = this.formatTimeRange(event.startTime, event.endTime);
+            eventEl.appendChild(timeEl);
+            
+            if (event.notes) {
+                const notesEl = document.createElement('div');
+                notesEl.className = 'event-notes';
+                notesEl.textContent = event.notes;
+                eventEl.appendChild(notesEl);
+            }
+            
+            eventsContainer.appendChild(eventEl);
+        });
+
+        // Use event delegation: attach a single click handler to the container
+        if (!this._plannerEventsClickDelegated) {
+            eventsContainer.addEventListener('click', (evt) => {
+                const eventEl = evt.target.closest('.planner-event');
+                if (!eventEl || !eventsContainer.contains(eventEl)) {
+                    return;
+                }
+                const eventId = eventEl.dataset.eventId;
+                this.showPlannerEventModal(eventId);
+            });
+            this._plannerEventsClickDelegated = true;
+        }
+    }
+
+    formatTimeRange(startTime, endTime) {
+        const [startHours, startMinutes] = startTime.split(':').map(Number);
+        const [endHours, endMinutes] = endTime.split(':').map(Number);
+        
+        return `${this.plannerManager.formatTime12h(startHours, startMinutes)} - ${this.plannerManager.formatTime12h(endHours, endMinutes)}`;
+    }
+
+    setupCurrentTimeIndicator() {
+        // Clear existing interval
+        if (this.plannerManager.timeUpdateInterval) {
+            clearInterval(this.plannerManager.timeUpdateInterval);
+        }
+
+        const updateIndicator = () => {
+            const indicator = document.getElementById('current-time-indicator');
+            const label = document.getElementById('current-time-label');
+            
+            // Only show for today
+            const today = this.plannerManager.formatDate(new Date());
+            const viewingDate = this.plannerManager.formatDate(this.plannerManager.currentDate);
+            
+            if (today !== viewingDate) {
+                indicator.classList.remove('visible');
+                return;
+            }
+            
+            const timeInfo = this.plannerManager.getCurrentTimeInfo();
+            
+            if (timeInfo) {
+                indicator.style.top = `${timeInfo.percentage}%`;
+                label.textContent = timeInfo.timeString;
+                indicator.classList.add('visible');
+            } else {
+                indicator.classList.remove('visible');
+            }
+        };
+
+        // Update immediately
+        updateIndicator();
+
+        // Update every minute
+        this.plannerManager.timeUpdateInterval = setInterval(updateIndicator, 60000);
+    }
+
+    showPlannerEventModal(eventId = null, defaultStartTime = null) {
+        const modal = document.getElementById('planner-event-modal');
+        const form = document.getElementById('planner-event-form');
+        const title = document.getElementById('planner-event-modal-title');
+        const deleteBtn = document.getElementById('delete-planner-event');
+        
+        if (eventId) {
+            // Edit mode
+            const event = this.dataManager.data.plannerEvents.find(e => e.id === eventId);
+            if (event) {
+                title.textContent = 'Edit Event';
+                document.getElementById('event-title').value = event.title;
+                document.getElementById('event-start-time').value = event.startTime;
+                document.getElementById('event-end-time').value = event.endTime;
+                document.getElementById('event-category').value = event.category;
+                document.getElementById('event-notes').value = event.notes || '';
+                form.dataset.editingId = eventId;
+                deleteBtn.style.display = 'block';
+            }
+        } else {
+            // Add mode
+            title.textContent = 'Add Event';
+            form.reset();
+            delete form.dataset.editingId;
+            deleteBtn.style.display = 'none';
+            
+            // Set default times if provided
+            if (defaultStartTime) {
+                document.getElementById('event-start-time').value = defaultStartTime;
+                
+                // Calculate end time (1 hour later, but not beyond 23:00, and strictly after start)
+                const [hours, minutes] = defaultStartTime.split(':').map(Number);
+                const startTotalMinutes = hours * 60 + minutes;
+                const maxEndMinutes = 23 * 60; // 23:00 is the latest allowed end time
+                
+                if (startTotalMinutes < maxEndMinutes) {
+                    let endTotalMinutes = startTotalMinutes + 60;
+                    if (endTotalMinutes > maxEndMinutes) {
+                        endTotalMinutes = maxEndMinutes;
+                    }
+                    
+                    if (endTotalMinutes > startTotalMinutes) {
+                        const endHours = Math.floor(endTotalMinutes / 60);
+                        const endMinutes = endTotalMinutes % 60;
+                        document.getElementById('event-end-time').value =
+                            `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+                    } else {
+                        // If we can't compute a valid end time, leave it blank for the user to set.
+                        document.getElementById('event-end-time').value = '';
+                    }
+                } else {
+                    // Start time is at or after the maximum end time; don't set a default end time.
+                    document.getElementById('event-end-time').value = '';
+                }
+            }
+        }
+        
+        modal.classList.add('active');
+        document.getElementById('event-title').focus();
+    }
+
+    updateEventEndTime() {
+        const startTime = document.getElementById('event-start-time').value;
+        const duration = parseInt(document.getElementById('event-duration').value);
+        const display = document.getElementById('event-end-time-display');
+        
+        if (startTime && duration && duration > 0) {
+            const [hours, minutes] = startTime.split(':').map(Number);
+            const totalMinutes = hours * 60 + minutes + duration;
+            const endHours = Math.floor(totalMinutes / 60) % 24;
+            const endMinutes = totalMinutes % 60;
+            const endTime = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+            display.textContent = `Ends at ${endTime}`;
+        } else if (duration === -1) {
+            display.textContent = 'All day event';
+        } else {
+            display.textContent = '';
+        }
+    }
+
+    async saveEvent() {
+        const form = document.getElementById('event-form');
+        const name = document.getElementById('event-name').value.trim();
+        const description = document.getElementById('event-description').value.trim();
+        const date = document.getElementById('event-date').value;
+        const startTime = document.getElementById('event-start-time').value;
+        const durationInput = document.getElementById('event-duration').value;
+        const duration = durationInput === '' ? -1 : parseInt(durationInput);
+        const isRecurring = document.getElementById('event-is-recurring').checked;
+        
+        if (!name || !date || !startTime) {
+            alert('Please fill in all required fields');
+            return;
+        }
+        
+        let recurrence = null;
+        if (isRecurring) {
+            const type = document.getElementById('recurrence-type').value;
+            const interval = parseInt(document.getElementById('recurrence-interval').value);
+            
+            recurrence = { type, interval };
+            
+            if (type === 'weekly') {
+                const daysOfWeek = Array.from(
+                    document.querySelectorAll('#recurrence-days-group input[type="checkbox"]:checked')
+                ).map(cb => parseInt(cb.value));
+                recurrence.daysOfWeek = daysOfWeek;
+            }
+            
+            if (type === 'monthly') {
+                const monthlyType = document.getElementById('recurrence-monthly-type').value;
+                if (monthlyType === 'date') {
+                    recurrence.dayOfMonth = parseInt(document.getElementById('recurrence-day-of-month').value);
+                } else {
+                    recurrence.monthlyPattern = {
+                        week: parseInt(document.getElementById('recurrence-pattern-week').value),
+                        dayOfWeek: parseInt(document.getElementById('recurrence-pattern-day').value)
+                    };
+                }
+            }
+            
+            const endType = document.getElementById('recurrence-end-type').value;
+            if (endType === 'on') {
+                recurrence.endDate = document.getElementById('recurrence-end-date').value;
+            } else if (endType === 'after') {
+                recurrence.occurrences = parseInt(document.getElementById('recurrence-occurrences').value);
+            }
+        }
+        
+        const editingId = form.dataset.editingId;
+        if (editingId) {
+            await this.dataManager.updateEvent(editingId, name, description, date, startTime, duration, recurrence);
+        } else {
+            await this.dataManager.addEvent(name, description, date, startTime, duration, recurrence);
+        }
+        
+        document.getElementById('event-modal').classList.remove('active');
+        form.reset();
+        document.getElementById('recurrence-fields').style.display = 'none';
+        this.renderTodayView();
+        this.renderCalendarView();
+    }
+
+    async saveEventAsTemplate() {
+        const name = document.getElementById('event-name').value.trim();
+        const description = document.getElementById('event-description').value.trim();
+        const durationInput = document.getElementById('event-duration').value;
+        const duration = durationInput === '' ? -1 : parseInt(durationInput);
+        
+        if (!name) {
+            alert('Please enter an event name first');
+            return;
+        }
+        
+        await this.dataManager.addTemplate(name, description, duration);
+        alert('Template saved!');
+        this.renderSettingsView();
+    }
+
+    showTemplateModal(templateId = null) {
+        const modal = document.getElementById('template-modal');
+        const form = document.getElementById('template-form');
+        const title = document.getElementById('template-modal-title');
+        
+        if (templateId) {
+            // Edit mode
+            const template = this.dataManager.data.templates.find(t => t.id === templateId);
+            if (template) {
+                title.textContent = 'Edit Template';
+                document.getElementById('template-name').value = template.name;
+                document.getElementById('template-description').value = template.description || '';
+                document.getElementById('template-duration').value = template.duration === -1 ? '' : template.duration;
+                form.dataset.editingId = templateId;
+            }
+        } else {
+            // Add mode
+            title.textContent = 'Add Template';
+            form.reset();
+            delete form.dataset.editingId;
+        }
+        
+        modal.classList.add('active');
+        document.getElementById('template-name').focus();
+    }
+
+    async saveTemplate() {
+        const form = document.getElementById('template-form');
+        const name = document.getElementById('template-name').value.trim();
+        const description = document.getElementById('template-description').value.trim();
+        const durationInput = document.getElementById('template-duration').value;
+        const duration = durationInput === '' ? -1 : parseInt(durationInput);
+        
+        if (!name) {
+            alert('Please enter a template name');
+            return;
+        }
+        
+        const editingId = form.dataset.editingId;
+        if (editingId) {
+            await this.dataManager.updateTemplate(editingId, name, description, duration);
+        } else {
+            await this.dataManager.addTemplate(name, description, duration);
+        }
+        
+        document.getElementById('template-modal').classList.remove('active');
+        form.reset();
+        this.renderSettingsView();
+    }
+
+    showTemplatePicker() {
+        const modal = document.getElementById('template-picker-modal');
+        const list = document.getElementById('template-picker-list');
+        
+        if (this.dataManager.data.templates.length === 0) {
+            list.innerHTML = '<div class="empty-state"><p>No templates available. Create one in Settings.</p></div>';
+        } else {
+            list.innerHTML = this.dataManager.data.templates.map(template => {
+                const durationDisplay = template.duration === -1 ? 'All day' : 
+                    template.duration >= 60 ? `${Math.floor(template.duration / 60)} hr ${template.duration % 60 > 0 ? template.duration % 60 + ' min' : ''}`.trim() :
+                    `${template.duration} min`;
+                
+                return `
+                    <div class="template-item" data-template-id="${template.id}">
+                        <div class="template-name">${template.name}</div>
+                        ${template.description ? `<div class="template-description">${template.description}</div>` : ''}
+                        <div class="template-duration">Duration: ${durationDisplay}</div>
+                    </div>
+                `;
+            }).join('');
+            
+            // Add click handlers
+            list.querySelectorAll('.template-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const templateId = item.dataset.templateId;
+                    this.applyTemplate(templateId);
+                });
+            });
+        }
+        
+        modal.classList.add('active');
+    }
+
+    applyTemplate(templateId) {
+        const template = this.dataManager.data.templates.find(t => t.id === templateId);
+        if (template) {
+            document.getElementById('event-name').value = template.name;
+            document.getElementById('event-description').value = template.description || '';
+            document.getElementById('event-duration').value = template.duration === -1 ? '' : template.duration;
+            
+            // Highlight the active preset button
+            const duration = template.duration;
+            document.querySelectorAll('#event-form .preset-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.duration) === duration);
+            });
+            
+            this.updateEventEndTime();
+        }
+        
+        document.getElementById('template-picker-modal').classList.remove('active');
     }
 
     // Stats View
@@ -1400,62 +1949,9 @@ class HabitTrackerApp {
             });
         }
 
-        // Templates
-        const templatesList = document.getElementById('templates-settings-list');
-        if (this.dataManager.data.templates.length === 0) {
-            templatesList.innerHTML = '<div class="empty-state"><p>No templates configured yet.</p></div>';
-        } else {
-            templatesList.innerHTML = this.dataManager.data.templates.map(template => {
-                const durationDisplay = template.duration === -1 ? 'All day' : 
-                    template.duration >= 60 ? `${Math.floor(template.duration / 60)} hr ${template.duration % 60 > 0 ? template.duration % 60 + ' min' : ''}`.trim() :
-                    `${template.duration} min`;
-                
-                return `
-                    <div class="setting-item">
-                        <div class="setting-info">
-                            <div class="setting-name">${template.name}</div>
-                            <div class="setting-detail">Duration: ${durationDisplay}</div>
-                            ${template.description ? `<div class="setting-detail">${template.description}</div>` : ''}
-                        </div>
-                        <div class="setting-actions">
-                            <button class="btn-icon edit" data-template-id="${template.id}">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
-                                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                                </svg>
-                            </button>
-                            <button class="btn-icon delete" data-template-id="${template.id}">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polyline points="3 6 5 6 21 6"/>
-                                    <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-
-            templatesList.querySelectorAll('.btn-icon.edit').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const templateId = btn.dataset.templateId;
-                    this.showTemplateModal(templateId);
-                });
-            });
-
-            templatesList.querySelectorAll('.btn-icon.delete').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    if (confirm('Delete this template?')) {
-                        await this.dataManager.deleteTemplate(btn.dataset.templateId);
-                        this.renderSettingsView();
-                    }
-                });
-            });
-        }
-
         // Buttons
         document.getElementById('add-habit-btn').onclick = () => this.showHabitModal();
         document.getElementById('add-tracking-btn').onclick = () => this.showTrackingModal();
-        document.getElementById('add-template-btn').onclick = () => this.showTemplateModal();
         document.getElementById('import-data-btn').onclick = () => this.showImportModal();
         document.getElementById('export-data-btn').onclick = () => this.exportData();
         document.getElementById('clear-data-btn').onclick = () => this.clearData();
@@ -1636,6 +2132,73 @@ class HabitTrackerApp {
         document.getElementById('import-modal').onclick = (e) => {
             if (e.target.id === 'import-modal') {
                 document.getElementById('import-modal').classList.remove('active');
+            }
+        };
+
+        // Planner event modal
+        document.getElementById('close-planner-event-modal').onclick = () => {
+            document.getElementById('planner-event-modal').classList.remove('active');
+        };
+
+        document.getElementById('cancel-planner-event').onclick = () => {
+            document.getElementById('planner-event-modal').classList.remove('active');
+        };
+
+        document.getElementById('delete-planner-event').onclick = async () => {
+            const form = document.getElementById('planner-event-form');
+            const eventId = form.dataset.editingId;
+            
+            if (eventId && confirm('Delete this event?')) {
+                await this.plannerManager.deleteEvent(eventId);
+                document.getElementById('planner-event-modal').classList.remove('active');
+                this.renderPlannerView();
+            }
+        };
+
+        document.getElementById('planner-event-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const title = document.getElementById('event-title').value.trim();
+            const startTime = document.getElementById('event-start-time').value;
+            const endTime = document.getElementById('event-end-time').value;
+            const category = document.getElementById('event-category').value;
+            const notes = document.getElementById('event-notes').value.trim();
+            
+            // Validate times using numeric comparison
+            const startMinutes = this.plannerManager.timeToMinutes(startTime);
+            const endMinutes = this.plannerManager.timeToMinutes(endTime);
+            
+            if (startMinutes >= endMinutes) {
+                alert('End time must be after start time');
+                return;
+            }
+            
+            if (title && startTime && endTime) {
+                const form = document.getElementById('planner-event-form');
+                const editingId = form.dataset.editingId;
+                
+                if (editingId) {
+                    await this.plannerManager.updateEvent(editingId, startTime, endTime, title, category, notes);
+                    delete form.dataset.editingId;
+                } else {
+                    await this.plannerManager.addEvent(
+                        this.plannerManager.currentDate,
+                        startTime,
+                        endTime,
+                        title,
+                        category,
+                        notes
+                    );
+                }
+                
+                document.getElementById('planner-event-modal').classList.remove('active');
+                form.reset();
+                this.renderPlannerView();
+            }
+        };
+
+        document.getElementById('planner-event-modal').onclick = (e) => {
+            if (e.target.id === 'planner-event-modal') {
+                document.getElementById('planner-event-modal').classList.remove('active');
             }
         };
 
@@ -1871,287 +2434,6 @@ class HabitTrackerApp {
         a.download = `track-deez-backup-${new Date().toISOString().split('T')[0]}.json`;
         a.click();
         URL.revokeObjectURL(url);
-    }
-
-    showEventModal(eventId = null, defaultDate = null) {
-        const modal = document.getElementById('event-modal');
-        const form = document.getElementById('event-form');
-        const title = document.getElementById('event-modal-title');
-        
-        if (eventId) {
-            // Edit mode
-            const event = this.dataManager.data.events.find(e => e.id === eventId);
-            if (event) {
-                title.textContent = 'Edit Event';
-                document.getElementById('event-name').value = event.name;
-                document.getElementById('event-description').value = event.description || '';
-                document.getElementById('event-date').value = event.date;
-                document.getElementById('event-start-time').value = event.startTime;
-                document.getElementById('event-duration').value = event.duration === -1 ? '' : event.duration;
-                
-                if (event.recurrence) {
-                    document.getElementById('event-is-recurring').checked = true;
-                    document.getElementById('recurrence-fields').style.display = 'block';
-                    this.populateRecurrenceFields(event.recurrence);
-                } else {
-                    document.getElementById('event-is-recurring').checked = false;
-                    document.getElementById('recurrence-fields').style.display = 'none';
-                }
-                
-                form.dataset.editingId = eventId;
-            }
-        } else {
-            // Add mode
-            title.textContent = 'Add Event';
-            form.reset();
-            if (defaultDate) {
-                document.getElementById('event-date').value = this.dataManager.formatDate(defaultDate);
-            }
-            document.getElementById('recurrence-fields').style.display = 'none';
-            delete form.dataset.editingId;
-        }
-        
-        modal.classList.add('active');
-        document.getElementById('event-name').focus();
-    }
-
-    populateRecurrenceFields(recurrence) {
-        document.getElementById('recurrence-type').value = recurrence.type;
-        document.getElementById('recurrence-interval').value = recurrence.interval || 1;
-        
-        if (recurrence.type === 'weekly' && recurrence.daysOfWeek) {
-            const checkboxes = document.querySelectorAll('#recurrence-days-group input[type="checkbox"]');
-            checkboxes.forEach(cb => {
-                cb.checked = recurrence.daysOfWeek.includes(parseInt(cb.value));
-            });
-            document.getElementById('recurrence-days-group').style.display = 'block';
-        }
-        
-        if (recurrence.type === 'monthly') {
-            document.getElementById('recurrence-monthly-group').style.display = 'block';
-            if (recurrence.dayOfMonth) {
-                document.getElementById('recurrence-monthly-type').value = 'date';
-                document.getElementById('recurrence-day-of-month').value = recurrence.dayOfMonth;
-                document.getElementById('recurrence-day-of-month-group').style.display = 'block';
-            } else if (recurrence.monthlyPattern) {
-                document.getElementById('recurrence-monthly-type').value = 'pattern';
-                document.getElementById('recurrence-pattern-week').value = recurrence.monthlyPattern.week;
-                document.getElementById('recurrence-pattern-day').value = recurrence.monthlyPattern.dayOfWeek;
-                document.getElementById('recurrence-pattern-group').style.display = 'block';
-            }
-        }
-        
-        if (recurrence.endDate) {
-            document.getElementById('recurrence-end-type').value = 'on';
-            document.getElementById('recurrence-end-date').value = recurrence.endDate;
-            document.getElementById('recurrence-end-date-group').style.display = 'block';
-        } else if (recurrence.occurrences) {
-            document.getElementById('recurrence-end-type').value = 'after';
-            document.getElementById('recurrence-occurrences').value = recurrence.occurrences;
-            document.getElementById('recurrence-occurrences-group').style.display = 'block';
-        } else {
-            document.getElementById('recurrence-end-type').value = 'never';
-        }
-    }
-
-    updateEventEndTime() {
-        const startTime = document.getElementById('event-start-time').value;
-        const duration = parseInt(document.getElementById('event-duration').value);
-        const display = document.getElementById('event-end-time-display');
-        
-        if (startTime && duration && duration > 0) {
-            const [hours, minutes] = startTime.split(':').map(Number);
-            const totalMinutes = hours * 60 + minutes + duration;
-            const endHours = Math.floor(totalMinutes / 60) % 24;
-            const endMinutes = totalMinutes % 60;
-            const endTime = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
-            display.textContent = `Ends at ${endTime}`;
-        } else if (duration === -1) {
-            display.textContent = 'All day event';
-        } else {
-            display.textContent = '';
-        }
-    }
-
-    async saveEvent() {
-        const form = document.getElementById('event-form');
-        const name = document.getElementById('event-name').value.trim();
-        const description = document.getElementById('event-description').value.trim();
-        const date = document.getElementById('event-date').value;
-        const startTime = document.getElementById('event-start-time').value;
-        const durationInput = document.getElementById('event-duration').value;
-        const duration = durationInput === '' ? -1 : parseInt(durationInput);
-        const isRecurring = document.getElementById('event-is-recurring').checked;
-        
-        if (!name || !date || !startTime) {
-            alert('Please fill in all required fields');
-            return;
-        }
-        
-        let recurrence = null;
-        if (isRecurring) {
-            const type = document.getElementById('recurrence-type').value;
-            const interval = parseInt(document.getElementById('recurrence-interval').value);
-            
-            recurrence = { type, interval };
-            
-            if (type === 'weekly') {
-                const daysOfWeek = Array.from(
-                    document.querySelectorAll('#recurrence-days-group input[type="checkbox"]:checked')
-                ).map(cb => parseInt(cb.value));
-                recurrence.daysOfWeek = daysOfWeek;
-            }
-            
-            if (type === 'monthly') {
-                const monthlyType = document.getElementById('recurrence-monthly-type').value;
-                if (monthlyType === 'date') {
-                    recurrence.dayOfMonth = parseInt(document.getElementById('recurrence-day-of-month').value);
-                } else {
-                    recurrence.monthlyPattern = {
-                        week: parseInt(document.getElementById('recurrence-pattern-week').value),
-                        dayOfWeek: parseInt(document.getElementById('recurrence-pattern-day').value)
-                    };
-                }
-            }
-            
-            const endType = document.getElementById('recurrence-end-type').value;
-            if (endType === 'on') {
-                recurrence.endDate = document.getElementById('recurrence-end-date').value;
-            } else if (endType === 'after') {
-                recurrence.occurrences = parseInt(document.getElementById('recurrence-occurrences').value);
-            }
-        }
-        
-        const editingId = form.dataset.editingId;
-        if (editingId) {
-            await this.dataManager.updateEvent(editingId, name, description, date, startTime, duration, recurrence);
-        } else {
-            await this.dataManager.addEvent(name, description, date, startTime, duration, recurrence);
-        }
-        
-        document.getElementById('event-modal').classList.remove('active');
-        form.reset();
-        document.getElementById('recurrence-fields').style.display = 'none';
-        this.renderTodayView();
-        this.renderCalendarView();
-    }
-
-    async saveEventAsTemplate() {
-        const name = document.getElementById('event-name').value.trim();
-        const description = document.getElementById('event-description').value.trim();
-        const durationInput = document.getElementById('event-duration').value;
-        const duration = durationInput === '' ? -1 : parseInt(durationInput);
-        
-        if (!name) {
-            alert('Please enter an event name first');
-            return;
-        }
-        
-        await this.dataManager.addTemplate(name, description, duration);
-        alert('Template saved!');
-        this.renderSettingsView();
-    }
-
-    showTemplateModal(templateId = null) {
-        const modal = document.getElementById('template-modal');
-        const form = document.getElementById('template-form');
-        const title = document.getElementById('template-modal-title');
-        
-        if (templateId) {
-            // Edit mode
-            const template = this.dataManager.data.templates.find(t => t.id === templateId);
-            if (template) {
-                title.textContent = 'Edit Template';
-                document.getElementById('template-name').value = template.name;
-                document.getElementById('template-description').value = template.description || '';
-                document.getElementById('template-duration').value = template.duration === -1 ? '' : template.duration;
-                form.dataset.editingId = templateId;
-            }
-        } else {
-            // Add mode
-            title.textContent = 'Add Template';
-            form.reset();
-            delete form.dataset.editingId;
-        }
-        
-        modal.classList.add('active');
-        document.getElementById('template-name').focus();
-    }
-
-    async saveTemplate() {
-        const form = document.getElementById('template-form');
-        const name = document.getElementById('template-name').value.trim();
-        const description = document.getElementById('template-description').value.trim();
-        const durationInput = document.getElementById('template-duration').value;
-        const duration = durationInput === '' ? -1 : parseInt(durationInput);
-        
-        if (!name) {
-            alert('Please enter a template name');
-            return;
-        }
-        
-        const editingId = form.dataset.editingId;
-        if (editingId) {
-            await this.dataManager.updateTemplate(editingId, name, description, duration);
-        } else {
-            await this.dataManager.addTemplate(name, description, duration);
-        }
-        
-        document.getElementById('template-modal').classList.remove('active');
-        form.reset();
-        this.renderSettingsView();
-    }
-
-    showTemplatePicker() {
-        const modal = document.getElementById('template-picker-modal');
-        const list = document.getElementById('template-picker-list');
-        
-        if (this.dataManager.data.templates.length === 0) {
-            list.innerHTML = '<div class="empty-state"><p>No templates available. Create one in Settings.</p></div>';
-        } else {
-            list.innerHTML = this.dataManager.data.templates.map(template => {
-                const durationDisplay = template.duration === -1 ? 'All day' : 
-                    template.duration >= 60 ? `${Math.floor(template.duration / 60)} hr ${template.duration % 60 > 0 ? template.duration % 60 + ' min' : ''}`.trim() :
-                    `${template.duration} min`;
-                
-                return `
-                    <div class="template-item" data-template-id="${template.id}">
-                        <div class="template-name">${template.name}</div>
-                        ${template.description ? `<div class="template-description">${template.description}</div>` : ''}
-                        <div class="template-duration">Duration: ${durationDisplay}</div>
-                    </div>
-                `;
-            }).join('');
-            
-            // Add click handlers
-            list.querySelectorAll('.template-item').forEach(item => {
-                item.addEventListener('click', () => {
-                    const templateId = item.dataset.templateId;
-                    this.applyTemplate(templateId);
-                });
-            });
-        }
-        
-        modal.classList.add('active');
-    }
-
-    applyTemplate(templateId) {
-        const template = this.dataManager.data.templates.find(t => t.id === templateId);
-        if (template) {
-            document.getElementById('event-name').value = template.name;
-            document.getElementById('event-description').value = template.description || '';
-            document.getElementById('event-duration').value = template.duration === -1 ? '' : template.duration;
-            
-            // Highlight the active preset button
-            const duration = template.duration;
-            document.querySelectorAll('#event-form .preset-btn').forEach(btn => {
-                btn.classList.toggle('active', parseInt(btn.dataset.duration) === duration);
-            });
-            
-            this.updateEventEndTime();
-        }
-        
-        document.getElementById('template-picker-modal').classList.remove('active');
     }
 
     async clearData() {

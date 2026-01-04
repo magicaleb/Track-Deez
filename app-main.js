@@ -1411,6 +1411,9 @@ class HabitTrackerApp {
                 document.getElementById('event-notes').value = event.notes || '';
                 form.dataset.editingId = eventId;
                 deleteBtn.style.display = 'block';
+                
+                // Calculate and display duration based on existing start and end times
+                this.updatePlannerEventTimes('start');
             }
         } else {
             // Add mode
@@ -1439,6 +1442,13 @@ class HabitTrackerApp {
                         const endMinutes = endTotalMinutes % 60;
                         document.getElementById('event-end-time').value =
                             `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+                        
+                        // Set duration to 60 minutes and activate the preset
+                        document.getElementById('planner-event-duration').value = 60;
+                        document.querySelectorAll('#planner-event-form .preset-btn').forEach(btn => {
+                            btn.classList.toggle('active', parseInt(btn.dataset.duration) === 60);
+                        });
+                        this.updatePlannerEventTimes('duration');
                     } else {
                         // If we can't compute a valid end time, leave it blank for the user to set.
                         document.getElementById('event-end-time').value = '';
@@ -1452,6 +1462,98 @@ class HabitTrackerApp {
         
         modal.classList.add('active');
         document.getElementById('event-title').focus();
+    }
+
+    updatePlannerEventTimes(changedField) {
+        const startTimeInput = document.getElementById('event-start-time');
+        const endTimeInput = document.getElementById('event-end-time');
+        const durationInput = document.getElementById('planner-event-duration');
+        const display = document.getElementById('planner-duration-display');
+        
+        const startTime = startTimeInput.value;
+        const endTime = endTimeInput.value;
+        const duration = parseInt(durationInput.value) || 0;
+        
+        // Helper to format duration in user-friendly way
+        const formatDuration = (minutes) => {
+            if (minutes < 60) {
+                return `${minutes} min`;
+            }
+            const hours = Math.floor(minutes / 60);
+            const mins = minutes % 60;
+            if (mins === 0) {
+                return `${hours} hr`;
+            }
+            return `${hours} hr ${mins} min`;
+        };
+        
+        // Helper to calculate duration from start and end times
+        const calculateDurationFromTimes = (startTime, endTime) => {
+            const startMinutes = this.plannerManager.timeToMinutes(startTime);
+            let endMinutes = this.plannerManager.timeToMinutes(endTime);
+            
+            // Handle crossing midnight
+            if (endMinutes <= startMinutes) {
+                endMinutes += 24 * 60;
+            }
+            
+            return endMinutes - startMinutes;
+        };
+        
+        // Helper to update duration display and preset buttons
+        const updateDurationDisplay = (calculatedDuration) => {
+            durationInput.value = calculatedDuration;
+            display.textContent = formatDuration(calculatedDuration);
+            
+            // Update preset button selection
+            document.querySelectorAll('#planner-event-form .preset-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.duration) === calculatedDuration);
+            });
+        };
+        
+        // Prevent infinite loops by tracking which field we're updating
+        if (this._isUpdating) return;
+        this._isUpdating = true;
+        
+        try {
+            if ((changedField === 'start' || changedField === 'end') && startTime && endTime) {
+                // Start Time + End Time → Calculate Duration
+                const calculatedDuration = calculateDurationFromTimes(startTime, endTime);
+                updateDurationDisplay(calculatedDuration);
+                
+            } else if (changedField === 'duration' && duration > 0) {
+                display.textContent = formatDuration(duration);
+                
+                if (startTime && !endTime) {
+                    // Start Time + Duration → Calculate End Time
+                    const startMinutes = this.plannerManager.timeToMinutes(startTime);
+                    const endMinutes = (startMinutes + duration) % (24 * 60);
+                    endTimeInput.value = this.plannerManager.minutesToTime(endMinutes);
+                    
+                } else if (endTime && !startTime) {
+                    // End Time + Duration → Calculate Start Time
+                    let endMinutes = this.plannerManager.timeToMinutes(endTime);
+                    let startMinutes = endMinutes - duration;
+                    
+                    // Handle crossing midnight backwards
+                    if (startMinutes < 0) {
+                        startMinutes += 24 * 60;
+                    }
+                    
+                    startTimeInput.value = this.plannerManager.minutesToTime(startMinutes);
+                    
+                } else if (startTime && endTime) {
+                    // If both times exist, recalculate end time based on start + duration
+                    const startMinutes = this.plannerManager.timeToMinutes(startTime);
+                    const endMinutes = (startMinutes + duration) % (24 * 60);
+                    endTimeInput.value = this.plannerManager.minutesToTime(endMinutes);
+                }
+            } else if (!duration || duration <= 0) {
+                display.textContent = '';
+            }
+        } finally {
+            this._isUpdating = false;
+        }
     }
 
     updateEventEndTime() {
@@ -2201,6 +2303,32 @@ class HabitTrackerApp {
                 document.getElementById('planner-event-modal').classList.remove('active');
             }
         };
+
+        // Duration preset handlers for planner event modal
+        document.querySelectorAll('#planner-event-form .preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const duration = parseInt(btn.dataset.duration);
+                document.getElementById('planner-event-duration').value = duration;
+                document.querySelectorAll('#planner-event-form .preset-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                this.updatePlannerEventTimes('duration');
+            });
+        });
+
+        // Auto-calculation event listeners for planner event modal
+        document.getElementById('event-start-time').addEventListener('input', () => {
+            this.updatePlannerEventTimes('start');
+        });
+        
+        document.getElementById('event-end-time').addEventListener('input', () => {
+            this.updatePlannerEventTimes('end');
+        });
+        
+        document.getElementById('planner-event-duration').addEventListener('input', () => {
+            // Clear preset button selection on custom input
+            document.querySelectorAll('#planner-event-form .preset-btn').forEach(b => b.classList.remove('active'));
+            this.updatePlannerEventTimes('duration');
+        });
 
         // Event modal
         document.getElementById('close-event-modal').onclick = () => {

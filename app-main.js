@@ -1412,25 +1412,8 @@ class HabitTrackerApp {
                 form.dataset.editingId = eventId;
                 deleteBtn.style.display = 'block';
                 
-                // Calculate and set duration
-                const startMinutes = this.plannerManager.timeToMinutes(event.startTime);
-                let endMinutes = this.plannerManager.timeToMinutes(event.endTime);
-                
-                // Handle crossing midnight
-                if (endMinutes <= startMinutes) {
-                    endMinutes += 24 * 60;
-                }
-                
-                const calculatedDuration = endMinutes - startMinutes;
-                document.getElementById('planner-event-duration').value = calculatedDuration;
-                
-                // Update preset button selection
-                document.querySelectorAll('#planner-event-form .preset-btn').forEach(btn => {
-                    btn.classList.toggle('active', parseInt(btn.dataset.duration) === calculatedDuration);
-                });
-                
-                // Update display
-                this.updatePlannerEventTimes('duration');
+                // Calculate and display duration based on existing start and end times
+                this.updatePlannerEventTimes('start');
             }
         } else {
             // Add mode

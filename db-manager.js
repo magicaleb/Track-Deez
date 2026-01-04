@@ -4,7 +4,7 @@
 class DBManager {
     constructor() {
         this.dbName = 'TrackDeezDB';
-        this.version = 2; // Incremented for description and archive fields
+        this.version = 3; // Incremented for events and templates
         this.db = null;
         this.isIndexedDBAvailable = this.checkIndexedDBSupport();
     }
@@ -48,6 +48,14 @@ class DBManager {
 
                 if (!db.objectStoreNames.contains('days')) {
                     db.createObjectStore('days', { keyPath: 'date' });
+                }
+
+                if (!db.objectStoreNames.contains('events')) {
+                    db.createObjectStore('events', { keyPath: 'id' });
+                }
+
+                if (!db.objectStoreNames.contains('templates')) {
+                    db.createObjectStore('templates', { keyPath: 'id' });
                 }
             };
         });
@@ -162,5 +170,7 @@ class DBManager {
         await this.clear('habits');
         await this.clear('trackingFields');
         await this.clear('days');
+        await this.clear('events');
+        await this.clear('templates');
     }
 }

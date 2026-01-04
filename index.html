@@ -74,6 +74,18 @@
                 </div>
 
                 <div class="section">
+                    <div class="section-header">
+                        <h2>Events</h2>
+                        <button id="add-event-btn" class="btn-primary">+ Add Event</button>
+                    </div>
+                    <div id="events-list" class="events-list">
+                        <div class="empty-state">
+                            <p>No events today.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
                     <h2>Habits</h2>
                     <div id="habits-list" class="habits-list">
                         <div class="empty-state">
@@ -200,6 +212,18 @@
                     <div id="tracking-settings-list" class="settings-list">
                         <div class="empty-state">
                             <p>No tracking fields configured yet.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-header">
+                        <h2>Event Templates</h2>
+                        <button id="add-template-btn" class="btn-primary">+ Add Template</button>
+                    </div>
+                    <div id="templates-settings-list" class="settings-list">
+                        <div class="empty-state">
+                            <p>No templates configured yet.</p>
                         </div>
                     </div>
                 </div>
@@ -348,6 +372,198 @@
                             <button type="submit" class="btn-primary">Import</button>
                         </div>
                     </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal for Adding/Editing Events -->
+        <div id="event-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="event-modal-title">Add Event</h2>
+                    <button class="modal-close" id="close-event-modal">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <button type="button" id="use-template-btn" class="btn-secondary" style="width: 100%;">📋 Use Template</button>
+                    </div>
+                    <form id="event-form">
+                        <div class="form-group">
+                            <label for="event-name">Event Name</label>
+                            <input type="text" id="event-name" required placeholder="e.g., Team Meeting">
+                        </div>
+                        <div class="form-group">
+                            <label for="event-description">Description (optional)</label>
+                            <textarea id="event-description" rows="3" placeholder="Add details about this event..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="event-date">Date</label>
+                            <input type="date" id="event-date" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="event-start-time">Start Time</label>
+                            <input type="time" id="event-start-time" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="event-duration">Duration</label>
+                            <div class="duration-presets">
+                                <button type="button" class="preset-btn" data-duration="15">15 min</button>
+                                <button type="button" class="preset-btn" data-duration="30">30 min</button>
+                                <button type="button" class="preset-btn" data-duration="45">45 min</button>
+                                <button type="button" class="preset-btn" data-duration="60">1 hr</button>
+                                <button type="button" class="preset-btn" data-duration="90">1.5 hr</button>
+                                <button type="button" class="preset-btn" data-duration="120">2 hr</button>
+                                <button type="button" class="preset-btn" data-duration="180">3 hr</button>
+                                <button type="button" class="preset-btn" data-duration="-1">All day</button>
+                            </div>
+                            <input type="number" id="event-duration" min="1" placeholder="Custom duration (minutes)" style="margin-top: 0.5rem;">
+                            <small id="event-end-time-display" style="color: #6b7280; display: block; margin-top: 0.25rem;"></small>
+                        </div>
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="event-is-recurring">
+                                <span>Recurring Event</span>
+                            </label>
+                        </div>
+                        <div id="recurrence-fields" style="display: none;">
+                            <div class="form-group">
+                                <label for="recurrence-type">Repeat</label>
+                                <select id="recurrence-type">
+                                    <option value="daily">Daily</option>
+                                    <option value="weekly">Weekly</option>
+                                    <option value="monthly">Monthly</option>
+                                    <option value="yearly">Yearly</option>
+                                    <option value="custom">Custom</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="recurrence-interval-group">
+                                <label for="recurrence-interval">Repeat every</label>
+                                <input type="number" id="recurrence-interval" value="1" min="1">
+                                <span id="recurrence-interval-unit">day(s)</span>
+                            </div>
+                            <div class="form-group" id="recurrence-days-group" style="display: none;">
+                                <label>Days of the week</label>
+                                <div class="days-checkboxes">
+                                    <label><input type="checkbox" value="0"> Sun</label>
+                                    <label><input type="checkbox" value="1"> Mon</label>
+                                    <label><input type="checkbox" value="2"> Tue</label>
+                                    <label><input type="checkbox" value="3"> Wed</label>
+                                    <label><input type="checkbox" value="4"> Thu</label>
+                                    <label><input type="checkbox" value="5"> Fri</label>
+                                    <label><input type="checkbox" value="6"> Sat</label>
+                                </div>
+                            </div>
+                            <div class="form-group" id="recurrence-monthly-group" style="display: none;">
+                                <label for="recurrence-monthly-type">Monthly on</label>
+                                <select id="recurrence-monthly-type">
+                                    <option value="date">Day of month</option>
+                                    <option value="pattern">Pattern</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="recurrence-day-of-month-group" style="display: none;">
+                                <label for="recurrence-day-of-month">Day of month</label>
+                                <input type="number" id="recurrence-day-of-month" min="1" max="31" value="1">
+                            </div>
+                            <div id="recurrence-pattern-group" style="display: none;">
+                                <div class="form-group">
+                                    <label for="recurrence-pattern-week">Week</label>
+                                    <select id="recurrence-pattern-week">
+                                        <option value="1">First</option>
+                                        <option value="2">Second</option>
+                                        <option value="3">Third</option>
+                                        <option value="4">Fourth</option>
+                                        <option value="-1">Last</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="recurrence-pattern-day">Day</label>
+                                    <select id="recurrence-pattern-day">
+                                        <option value="0">Sunday</option>
+                                        <option value="1">Monday</option>
+                                        <option value="2">Tuesday</option>
+                                        <option value="3">Wednesday</option>
+                                        <option value="4">Thursday</option>
+                                        <option value="5">Friday</option>
+                                        <option value="6">Saturday</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="recurrence-end-type">Ends</label>
+                                <select id="recurrence-end-type">
+                                    <option value="never">Never</option>
+                                    <option value="on">On date</option>
+                                    <option value="after">After occurrences</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="recurrence-end-date-group" style="display: none;">
+                                <label for="recurrence-end-date">End date</label>
+                                <input type="date" id="recurrence-end-date">
+                            </div>
+                            <div class="form-group" id="recurrence-occurrences-group" style="display: none;">
+                                <label for="recurrence-occurrences">Number of occurrences</label>
+                                <input type="number" id="recurrence-occurrences" min="1" value="10">
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="btn-secondary" id="save-as-template-btn">Save as Template</button>
+                            <button type="button" class="btn-secondary" id="cancel-event">Cancel</button>
+                            <button type="submit" class="btn-primary">Save Event</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal for Templates -->
+        <div id="template-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="template-modal-title">Add Template</h2>
+                    <button class="modal-close" id="close-template-modal">×</button>
+                </div>
+                <div class="modal-body">
+                    <form id="template-form">
+                        <div class="form-group">
+                            <label for="template-name">Template Name</label>
+                            <input type="text" id="template-name" required placeholder="e.g., Standard Meeting">
+                        </div>
+                        <div class="form-group">
+                            <label for="template-description">Description</label>
+                            <textarea id="template-description" rows="3" placeholder="Add details about this template..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="template-duration">Duration</label>
+                            <div class="duration-presets">
+                                <button type="button" class="preset-btn" data-duration="15">15 min</button>
+                                <button type="button" class="preset-btn" data-duration="30">30 min</button>
+                                <button type="button" class="preset-btn" data-duration="45">45 min</button>
+                                <button type="button" class="preset-btn" data-duration="60">1 hr</button>
+                                <button type="button" class="preset-btn" data-duration="90">1.5 hr</button>
+                                <button type="button" class="preset-btn" data-duration="120">2 hr</button>
+                                <button type="button" class="preset-btn" data-duration="180">3 hr</button>
+                                <button type="button" class="preset-btn" data-duration="-1">All day</button>
+                            </div>
+                            <input type="number" id="template-duration" min="1" placeholder="Custom duration (minutes)" style="margin-top: 0.5rem;">
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="btn-secondary" id="cancel-template">Cancel</button>
+                            <button type="submit" class="btn-primary">Save Template</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal for Template Picker -->
+        <div id="template-picker-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Choose Template</h2>
+                    <button class="modal-close" id="close-template-picker">×</button>
+                </div>
+                <div class="modal-body">
+                    <div id="template-picker-list" class="template-list"></div>
                 </div>
             </div>
         </div>

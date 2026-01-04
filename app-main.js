@@ -1454,6 +1454,206 @@ class HabitTrackerApp {
         document.getElementById('event-title').focus();
     }
 
+    updateEventEndTime() {
+        const startTime = document.getElementById('event-start-time').value;
+        const duration = parseInt(document.getElementById('event-duration').value);
+        const display = document.getElementById('event-end-time-display');
+        
+        if (startTime && duration && duration > 0) {
+            const [hours, minutes] = startTime.split(':').map(Number);
+            const totalMinutes = hours * 60 + minutes + duration;
+            const endHours = Math.floor(totalMinutes / 60) % 24;
+            const endMinutes = totalMinutes % 60;
+            const endTime = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+            display.textContent = `Ends at ${endTime}`;
+        } else if (duration === -1) {
+            display.textContent = 'All day event';
+        } else {
+            display.textContent = '';
+        }
+    }
+
+    async saveEvent() {
+        const form = document.getElementById('event-form');
+        const name = document.getElementById('event-name').value.trim();
+        const description = document.getElementById('event-description').value.trim();
+        const date = document.getElementById('event-date').value;
+        const startTime = document.getElementById('event-start-time').value;
+        const durationInput = document.getElementById('event-duration').value;
+        const duration = durationInput === '' ? -1 : parseInt(durationInput);
+        const isRecurring = document.getElementById('event-is-recurring').checked;
+        
+        if (!name || !date || !startTime) {
+            alert('Please fill in all required fields');
+            return;
+        }
+        
+        let recurrence = null;
+        if (isRecurring) {
+            const type = document.getElementById('recurrence-type').value;
+            const interval = parseInt(document.getElementById('recurrence-interval').value);
+            
+            recurrence = { type, interval };
+            
+            if (type === 'weekly') {
+                const daysOfWeek = Array.from(
+                    document.querySelectorAll('#recurrence-days-group input[type="checkbox"]:checked')
+                ).map(cb => parseInt(cb.value));
+                recurrence.daysOfWeek = daysOfWeek;
+            }
+            
+            if (type === 'monthly') {
+                const monthlyType = document.getElementById('recurrence-monthly-type').value;
+                if (monthlyType === 'date') {
+                    recurrence.dayOfMonth = parseInt(document.getElementById('recurrence-day-of-month').value);
+                } else {
+                    recurrence.monthlyPattern = {
+                        week: parseInt(document.getElementById('recurrence-pattern-week').value),
+                        dayOfWeek: parseInt(document.getElementById('recurrence-pattern-day').value)
+                    };
+                }
+            }
+            
+            const endType = document.getElementById('recurrence-end-type').value;
+            if (endType === 'on') {
+                recurrence.endDate = document.getElementById('recurrence-end-date').value;
+            } else if (endType === 'after') {
+                recurrence.occurrences = parseInt(document.getElementById('recurrence-occurrences').value);
+            }
+        }
+        
+        const editingId = form.dataset.editingId;
+        if (editingId) {
+            await this.dataManager.updateEvent(editingId, name, description, date, startTime, duration, recurrence);
+        } else {
+            await this.dataManager.addEvent(name, description, date, startTime, duration, recurrence);
+        }
+        
+        document.getElementById('event-modal').classList.remove('active');
+        form.reset();
+        document.getElementById('recurrence-fields').style.display = 'none';
+        this.renderTodayView();
+        this.renderCalendarView();
+    }
+
+    async saveEventAsTemplate() {
+        const name = document.getElementById('event-name').value.trim();
+        const description = document.getElementById('event-description').value.trim();
+        const durationInput = document.getElementById('event-duration').value;
+        const duration = durationInput === '' ? -1 : parseInt(durationInput);
+        
+        if (!name) {
+            alert('Please enter an event name first');
+            return;
+        }
+        
+        await this.dataManager.addTemplate(name, description, duration);
+        alert('Template saved!');
+        this.renderSettingsView();
+    }
+
+    showTemplateModal(templateId = null) {
+        const modal = document.getElementById('template-modal');
+        const form = document.getElementById('template-form');
+        const title = document.getElementById('template-modal-title');
+        
+        if (templateId) {
+            // Edit mode
+            const template = this.dataManager.data.templates.find(t => t.id === templateId);
+            if (template) {
+                title.textContent = 'Edit Template';
+                document.getElementById('template-name').value = template.name;
+                document.getElementById('template-description').value = template.description || '';
+                document.getElementById('template-duration').value = template.duration === -1 ? '' : template.duration;
+                form.dataset.editingId = templateId;
+            }
+        } else {
+            // Add mode
+            title.textContent = 'Add Template';
+            form.reset();
+            delete form.dataset.editingId;
+        }
+        
+        modal.classList.add('active');
+        document.getElementById('template-name').focus();
+    }
+
+    async saveTemplate() {
+        const form = document.getElementById('template-form');
+        const name = document.getElementById('template-name').value.trim();
+        const description = document.getElementById('template-description').value.trim();
+        const durationInput = document.getElementById('template-duration').value;
+        const duration = durationInput === '' ? -1 : parseInt(durationInput);
+        
+        if (!name) {
+            alert('Please enter a template name');
+            return;
+        }
+        
+        const editingId = form.dataset.editingId;
+        if (editingId) {
+            await this.dataManager.updateTemplate(editingId, name, description, duration);
+        } else {
+            await this.dataManager.addTemplate(name, description, duration);
+        }
+        
+        document.getElementById('template-modal').classList.remove('active');
+        form.reset();
+        this.renderSettingsView();
+    }
+
+    showTemplatePicker() {
+        const modal = document.getElementById('template-picker-modal');
+        const list = document.getElementById('template-picker-list');
+        
+        if (this.dataManager.data.templates.length === 0) {
+            list.innerHTML = '<div class="empty-state"><p>No templates available. Create one in Settings.</p></div>';
+        } else {
+            list.innerHTML = this.dataManager.data.templates.map(template => {
+                const durationDisplay = template.duration === -1 ? 'All day' : 
+                    template.duration >= 60 ? `${Math.floor(template.duration / 60)} hr ${template.duration % 60 > 0 ? template.duration % 60 + ' min' : ''}`.trim() :
+                    `${template.duration} min`;
+                
+                return `
+                    <div class="template-item" data-template-id="${template.id}">
+                        <div class="template-name">${template.name}</div>
+                        ${template.description ? `<div class="template-description">${template.description}</div>` : ''}
+                        <div class="template-duration">Duration: ${durationDisplay}</div>
+                    </div>
+                `;
+            }).join('');
+            
+            // Add click handlers
+            list.querySelectorAll('.template-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const templateId = item.dataset.templateId;
+                    this.applyTemplate(templateId);
+                });
+            });
+        }
+        
+        modal.classList.add('active');
+    }
+
+    applyTemplate(templateId) {
+        const template = this.dataManager.data.templates.find(t => t.id === templateId);
+        if (template) {
+            document.getElementById('event-name').value = template.name;
+            document.getElementById('event-description').value = template.description || '';
+            document.getElementById('event-duration').value = template.duration === -1 ? '' : template.duration;
+            
+            // Highlight the active preset button
+            const duration = template.duration;
+            document.querySelectorAll('#event-form .preset-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.duration) === duration);
+            });
+            
+            this.updateEventEndTime();
+        }
+        
+        document.getElementById('template-picker-modal').classList.remove('active');
+    }
+
     // Stats View
     renderStatsView() {
         const range = this.statsRange;
@@ -1999,6 +2199,146 @@ class HabitTrackerApp {
         document.getElementById('planner-event-modal').onclick = (e) => {
             if (e.target.id === 'planner-event-modal') {
                 document.getElementById('planner-event-modal').classList.remove('active');
+            }
+        };
+
+        // Event modal
+        document.getElementById('close-event-modal').onclick = () => {
+            document.getElementById('event-modal').classList.remove('active');
+        };
+
+        document.getElementById('cancel-event').onclick = () => {
+            document.getElementById('event-modal').classList.remove('active');
+        };
+
+        // Use template button
+        document.getElementById('use-template-btn').onclick = () => {
+            this.showTemplatePicker();
+        };
+
+        document.getElementById('event-is-recurring').onchange = (e) => {
+            const recurrenceFields = document.getElementById('recurrence-fields');
+            recurrenceFields.style.display = e.target.checked ? 'block' : 'none';
+        };
+
+        // Recurrence type change handler
+        document.getElementById('recurrence-type').onchange = (e) => {
+            const type = e.target.value;
+            const intervalUnit = document.getElementById('recurrence-interval-unit');
+            const daysGroup = document.getElementById('recurrence-days-group');
+            const monthlyGroup = document.getElementById('recurrence-monthly-group');
+            
+            // Update interval unit text
+            switch(type) {
+                case 'daily':
+                    intervalUnit.textContent = 'day(s)';
+                    break;
+                case 'weekly':
+                    intervalUnit.textContent = 'week(s)';
+                    break;
+                case 'monthly':
+                    intervalUnit.textContent = 'month(s)';
+                    break;
+                case 'yearly':
+                    intervalUnit.textContent = 'year(s)';
+                    break;
+                case 'custom':
+                    intervalUnit.textContent = 'day(s)';
+                    break;
+            }
+            
+            // Show/hide relevant fields
+            daysGroup.style.display = type === 'weekly' ? 'block' : 'none';
+            monthlyGroup.style.display = type === 'monthly' ? 'block' : 'none';
+        };
+
+        // Monthly recurrence type handler
+        document.getElementById('recurrence-monthly-type').onchange = (e) => {
+            const monthlyType = e.target.value;
+            document.getElementById('recurrence-day-of-month-group').style.display = 
+                monthlyType === 'date' ? 'block' : 'none';
+            document.getElementById('recurrence-pattern-group').style.display = 
+                monthlyType === 'pattern' ? 'block' : 'none';
+        };
+
+        // Recurrence end type handler
+        document.getElementById('recurrence-end-type').onchange = (e) => {
+            const endType = e.target.value;
+            document.getElementById('recurrence-end-date-group').style.display = 
+                endType === 'on' ? 'block' : 'none';
+            document.getElementById('recurrence-occurrences-group').style.display = 
+                endType === 'after' ? 'block' : 'none';
+        };
+
+        // Duration preset handlers for event modal
+        document.querySelectorAll('#event-form .preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const duration = parseInt(btn.dataset.duration);
+                document.getElementById('event-duration').value = duration === -1 ? '' : duration;
+                document.querySelectorAll('#event-form .preset-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                this.updateEventEndTime();
+            });
+        });
+
+        // Update end time display when start time or duration changes
+        document.getElementById('event-start-time').oninput = () => this.updateEventEndTime();
+        document.getElementById('event-duration').oninput = () => this.updateEventEndTime();
+
+        // Save as template button
+        document.getElementById('save-as-template-btn').onclick = () => {
+            this.saveEventAsTemplate();
+        };
+
+        document.getElementById('event-form').onsubmit = async (e) => {
+            e.preventDefault();
+            await this.saveEvent();
+        };
+
+        document.getElementById('event-modal').onclick = (e) => {
+            if (e.target.id === 'event-modal') {
+                document.getElementById('event-modal').classList.remove('active');
+            }
+        };
+
+        // Template modal
+        document.getElementById('close-template-modal').onclick = () => {
+            document.getElementById('template-modal').classList.remove('active');
+        };
+
+        document.getElementById('cancel-template').onclick = () => {
+            document.getElementById('template-modal').classList.remove('active');
+        };
+
+        // Duration preset handlers for template modal
+        document.querySelectorAll('#template-form .preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const duration = parseInt(btn.dataset.duration);
+                document.getElementById('template-duration').value = duration === -1 ? '' : duration;
+                document.querySelectorAll('#template-form .preset-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+
+        document.getElementById('template-form').onsubmit = async (e) => {
+            e.preventDefault();
+            await this.saveTemplate();
+        };
+
+        document.getElementById('template-modal').onclick = (e) => {
+            if (e.target.id === 'template-modal') {
+                document.getElementById('template-modal').classList.remove('active');
+            }
+        };
+
+        // Template picker modal
+        document.getElementById('close-template-picker').onclick = () => {
+            document.getElementById('template-picker-modal').classList.remove('active');
+        };
+
+        document.getElementById('template-picker-modal').onclick = (e) => {
+            if (e.target.id === 'template-picker-modal') {
+                document.getElementById('template-picker-modal').classList.remove('active');
             }
         };
     }

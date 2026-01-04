@@ -121,10 +121,7 @@ class GitHubStorageProvider extends CloudStorageProvider {
             try {
                 // Use TextDecoder for proper UTF-8 handling
                 const binaryString = atob(fileData.content.replace(/\s/g, ''));
-                const bytes = new Uint8Array(binaryString.length);
-                for (let i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                }
+                const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
                 const decoder = new TextDecoder('utf-8');
                 const content = decoder.decode(bytes);
                 return JSON.parse(content);
@@ -149,11 +146,8 @@ class GitHubStorageProvider extends CloudStorageProvider {
             // Use TextEncoder for proper UTF-8 handling
             const encoder = new TextEncoder();
             const bytes = encoder.encode(jsonString);
-            // Convert to binary string for btoa
-            let binaryString = '';
-            for (let i = 0; i < bytes.length; i++) {
-                binaryString += String.fromCharCode(bytes[i]);
-            }
+            // Convert to binary string for btoa (more efficient approach)
+            const binaryString = String.fromCharCode.apply(null, bytes);
             const content = btoa(binaryString);
 
             // Prepare the request body

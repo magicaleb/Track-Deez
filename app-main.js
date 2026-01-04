@@ -1504,48 +1504,39 @@ class HabitTrackerApp {
             return `${hours} hr ${mins} min`;
         };
         
+        // Helper to calculate duration from start and end times
+        const calculateDurationFromTimes = (startTime, endTime) => {
+            const startMinutes = this.plannerManager.timeToMinutes(startTime);
+            let endMinutes = this.plannerManager.timeToMinutes(endTime);
+            
+            // Handle crossing midnight
+            if (endMinutes <= startMinutes) {
+                endMinutes += 24 * 60;
+            }
+            
+            return endMinutes - startMinutes;
+        };
+        
+        // Helper to update duration display and preset buttons
+        const updateDurationDisplay = (calculatedDuration) => {
+            durationInput.value = calculatedDuration;
+            display.textContent = formatDuration(calculatedDuration);
+            
+            // Update preset button selection
+            document.querySelectorAll('#planner-event-form .preset-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.duration) === calculatedDuration);
+            });
+        };
+        
         // Prevent infinite loops by tracking which field we're updating
         if (this._isUpdating) return;
         this._isUpdating = true;
         
         try {
-            if (changedField === 'start' && startTime && endTime) {
+            if ((changedField === 'start' || changedField === 'end') && startTime && endTime) {
                 // Start Time + End Time → Calculate Duration
-                const startMinutes = this.plannerManager.timeToMinutes(startTime);
-                let endMinutes = this.plannerManager.timeToMinutes(endTime);
-                
-                // Handle crossing midnight
-                if (endMinutes <= startMinutes) {
-                    endMinutes += 24 * 60;
-                }
-                
-                const calculatedDuration = endMinutes - startMinutes;
-                durationInput.value = calculatedDuration;
-                display.textContent = formatDuration(calculatedDuration);
-                
-                // Update preset button selection
-                document.querySelectorAll('#planner-event-form .preset-btn').forEach(btn => {
-                    btn.classList.toggle('active', parseInt(btn.dataset.duration) === calculatedDuration);
-                });
-                
-            } else if (changedField === 'end' && startTime && endTime) {
-                // Start Time + End Time → Calculate Duration
-                const startMinutes = this.plannerManager.timeToMinutes(startTime);
-                let endMinutes = this.plannerManager.timeToMinutes(endTime);
-                
-                // Handle crossing midnight
-                if (endMinutes <= startMinutes) {
-                    endMinutes += 24 * 60;
-                }
-                
-                const calculatedDuration = endMinutes - startMinutes;
-                durationInput.value = calculatedDuration;
-                display.textContent = formatDuration(calculatedDuration);
-                
-                // Update preset button selection
-                document.querySelectorAll('#planner-event-form .preset-btn').forEach(btn => {
-                    btn.classList.toggle('active', parseInt(btn.dataset.duration) === calculatedDuration);
-                });
+                const calculatedDuration = calculateDurationFromTimes(startTime, endTime);
+                updateDurationDisplay(calculatedDuration);
                 
             } else if (changedField === 'duration' && duration > 0) {
                 display.textContent = formatDuration(duration);

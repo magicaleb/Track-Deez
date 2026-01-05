@@ -251,6 +251,59 @@
                 </div>
 
                 <div class="section">
+                    <h2>Storage Settings</h2>
+                    <div class="storage-settings">
+                        <div class="form-group">
+                            <label>Storage Mode</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="storage-mode" value="local" checked>
+                                    <span>Local Storage</span>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="storage-mode" value="cloud">
+                                    <span>Cloud Storage (GitHub)</span>
+                                </label>
+                            </div>
+                            <small style="color: #6b7280; display: block; margin-top: 0.5rem;">
+                                Local: Data stays on this device only. Cloud: Data syncs across all your devices.
+                            </small>
+                        </div>
+
+                        <div id="cloud-storage-config" style="display: none;">
+                            <div class="form-group">
+                                <label for="github-token">GitHub Personal Access Token</label>
+                                <input type="password" id="github-token" class="form-control" placeholder="ghp_...">
+                                <small style="color: #6b7280; display: block; margin-top: 0.25rem;">
+                                    <a href="https://github.com/settings/tokens/new?description=Track-Deez&scopes=repo" target="_blank" style="color: #4f46e5;">Create token</a> with 'repo' scope
+                                </small>
+                            </div>
+                            <div class="form-group">
+                                <label for="github-owner">GitHub Username</label>
+                                <input type="text" id="github-owner" class="form-control" placeholder="your-username">
+                            </div>
+                            <div class="form-group">
+                                <label for="github-repo">Repository Name</label>
+                                <input type="text" id="github-repo" class="form-control" placeholder="Track-Deez">
+                            </div>
+                            <div class="form-group">
+                                <label for="github-branch">Branch (optional)</label>
+                                <input type="text" id="github-branch" class="form-control" placeholder="main" value="main">
+                            </div>
+                            <button id="test-cloud-connection-btn" class="btn-secondary">Test Connection</button>
+                            <button id="save-cloud-config-btn" class="btn-primary">Save Cloud Configuration</button>
+                            <div id="cloud-status" style="margin-top: 0.5rem; padding: 0.5rem; border-radius: 4px; display: none;"></div>
+                        </div>
+
+                        <div id="cloud-actions" style="display: none; margin-top: 1rem;">
+                            <button id="sync-now-btn" class="btn-primary">Sync Now</button>
+                            <button id="switch-to-local-btn" class="btn-secondary">Switch to Local Storage</button>
+                            <div id="sync-status" style="margin-top: 0.5rem; font-size: 0.9rem; color: #6b7280;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
                     <h2>Data</h2>
                     <button id="import-data-btn" class="btn-secondary">Import Data</button>
                     <button id="export-data-btn" class="btn-secondary">Export Data</button>
@@ -651,6 +704,7 @@
     
     <script src="app.js"></script>
     <script src="db-manager.js"></script>
+    <script src="cloud-storage.js"></script>
     <script src="app-main.js"></script>
 </body>
 </html>

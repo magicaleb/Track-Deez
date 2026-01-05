@@ -1232,10 +1232,12 @@ class HabitTrackerApp {
         grid.innerHTML = html;
 
         // Add click handlers
-        grid.querySelectorAll('.calendar-day:not(.header):not(.empty)').forEach(day => {
-            day.addEventListener('click', () => {
-                const date = day.dataset.date;
-                this.showDayModal(new Date(date));
+        grid.querySelectorAll('.calendar-day:not(.header):not(.empty)').forEach(dayElement => {
+            dayElement.addEventListener('click', () => {
+                const dateStr = dayElement.dataset.date;
+                // Parse date string as local time to avoid timezone issues
+                const [year, month, day] = dateStr.split('-').map(Number);
+                this.showDayModal(new Date(year, month - 1, day));
             });
         });
 

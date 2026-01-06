@@ -93,7 +93,7 @@ export function calculateLongestStreak(habitId, daysData, habitCreatedAt) {
     if (currentStreakCount > longestStreak) {
         longestStreak = currentStreakCount;
         longestStart = currentStreakStart;
-        longestEnd = today;
+        longestEnd = new Date(today);
     }
     
     return {

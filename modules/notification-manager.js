@@ -149,7 +149,7 @@ export class NotificationManager {
         
         try {
             const notification = new Notification('Track Deez Reminder', {
-                body: 'Time to track today\'s habits! 📊',
+                body: "Time to track today's habits! 📊",
                 icon: '/icons/icon-192x192.png',
                 badge: '/icons/icon-96x96.png',
                 tag: 'daily-reminder',
@@ -226,7 +226,7 @@ export class NotificationManager {
         
         try {
             const notification = new Notification(`Reminder: ${habitName}`, {
-                body: 'Don\'t forget to complete your habit today! 💪',
+                body: "Don't forget to complete your habit today! 💪",
                 icon: '/icons/icon-192x192.png',
                 badge: '/icons/icon-96x96.png',
                 tag: `habit-${habitId}`,

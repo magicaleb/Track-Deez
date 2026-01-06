@@ -13,7 +13,7 @@ export class NotificationManager {
         this.permission = 'default';
         this.dailyReminderTime = NOTIFICATION_DEFAULTS.dailyReminderTime;
         this.habitReminders = {}; // habitId -> time string
-        this.registeredReminders = new Set();
+        this.activeTimers = {}; // Store timeout IDs for proper cleanup
         
         this.init();
     }
@@ -134,7 +134,7 @@ export class NotificationManager {
             this.scheduleDailyReminder();
         }, msUntilReminder);
         
-        this.registeredReminders.add('daily-reminder');
+        this.activeTimers['daily-reminder'] = timerId;
         
         console.log(`Daily reminder scheduled for ${this.dailyReminderTime}`);
     }
@@ -211,7 +211,7 @@ export class NotificationManager {
             this.scheduleHabitReminder(habitId, habitName, time);
         }, msUntilReminder);
         
-        this.registeredReminders.add(`habit-${habitId}`);
+        this.activeTimers[`habit-${habitId}`] = timerId;
     }
     
     /**
@@ -260,16 +260,20 @@ export class NotificationManager {
      * @param {string} reminderId - Reminder ID
      */
     clearReminder(reminderId) {
-        // Note: Can't actually clear timeouts without storing references
-        // This is a simplified implementation
-        this.registeredReminders.delete(reminderId);
+        if (this.activeTimers[reminderId]) {
+            clearTimeout(this.activeTimers[reminderId]);
+            delete this.activeTimers[reminderId];
+        }
     }
     
     /**
      * Clear all reminders
      */
     clearAllReminders() {
-        this.registeredReminders.clear();
+        Object.keys(this.activeTimers).forEach(reminderId => {
+            clearTimeout(this.activeTimers[reminderId]);
+        });
+        this.activeTimers = {};
     }
     
     /**

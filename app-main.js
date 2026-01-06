@@ -2630,7 +2630,11 @@ class HabitTrackerApp {
             const endMinutes = this.plannerManager.timeToMinutes(endTime);
             
             if (startMinutes >= endMinutes) {
-                alert('End time must be after start time');
+                if (window.appEnhancements) {
+                    window.appEnhancements.showMessage('End time must be after start time', 'warning');
+                } else {
+                    alert('End time must be after start time');
+                }
                 return;
             }
             

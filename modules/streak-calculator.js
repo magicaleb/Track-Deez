@@ -13,12 +13,21 @@ import { STREAK_MILESTONES } from '../utils/constants.js';
  * @returns {number} Current streak count
  */
 export function calculateCurrentStreak(habitId, daysData) {
+    // Early return if no days data exists
+    if (!daysData || Object.keys(daysData).length === 0) {
+        return 0;
+    }
+    
     const today = getTodayString();
     let streak = 0;
     let currentDate = parseDate(today);
     
+    // Limit iterations to prevent infinite loops (max 365 days)
+    const maxIterations = 365;
+    let iterations = 0;
+    
     // Start from today and count backwards
-    while (true) {
+    while (iterations < maxIterations) {
         const dateStr = formatDate(currentDate);
         const dayData = daysData[dateStr];
         
@@ -30,6 +39,8 @@ export function calculateCurrentStreak(habitId, daysData) {
             // Streak is broken
             break;
         }
+        
+        iterations++;
     }
     
     return streak;

@@ -2059,11 +2059,25 @@ class HabitTrackerApp {
                         </div>`;
                     }
                     
+                    // Truncate long descriptions
+                    let descriptionHtml = '';
+                    if (habit.description) {
+                        const maxLength = 100;
+                        if (habit.description.length > maxLength) {
+                            descriptionHtml = `<div class="setting-detail expandable-description">
+                                <span class="description-text">${habit.description.substring(0, maxLength)}...</span>
+                                <button class="btn-expand" data-full-text="${habit.description.replace(/"/g, '&quot;')}" style="color: var(--primary-color); background: none; border: none; padding: 0; margin-left: 4px; cursor: pointer; font-size: 0.875rem;">Show more</button>
+                            </div>`;
+                        } else {
+                            descriptionHtml = `<div class="setting-detail">${habit.description}</div>`;
+                        }
+                    }
+                    
                     return `
                         <div class="setting-item ${habit.isBuildUpHabit ? 'build-up-habit' : ''}">
                             <div class="setting-info">
                                 <div class="setting-name">${habit.name}</div>
-                                ${habit.description ? `<div class="setting-detail">${habit.description}</div>` : ''}
+                                ${descriptionHtml}
                                 ${progressInfo}
                             </div>
                             <div class="setting-actions">
@@ -2089,11 +2103,26 @@ class HabitTrackerApp {
             // Archived habits
             if (archivedHabits.length > 0) {
                 habitsHtml += '<div class="subsection-label" style="margin-top: 1rem;">Archived Habits</div>';
-                habitsHtml += archivedHabits.map(habit => `
+                habitsHtml += archivedHabits.map(habit => {
+                    // Truncate long descriptions for archived habits too
+                    let descriptionHtml = '';
+                    if (habit.description) {
+                        const maxLength = 100;
+                        if (habit.description.length > maxLength) {
+                            descriptionHtml = `<div class="setting-detail expandable-description">
+                                <span class="description-text">${habit.description.substring(0, maxLength)}...</span>
+                                <button class="btn-expand" data-full-text="${habit.description.replace(/"/g, '&quot;')}" style="color: var(--primary-color); background: none; border: none; padding: 0; margin-left: 4px; cursor: pointer; font-size: 0.875rem;">Show more</button>
+                            </div>`;
+                        } else {
+                            descriptionHtml = `<div class="setting-detail">${habit.description}</div>`;
+                        }
+                    }
+                    
+                    return `
                     <div class="setting-item archived">
                         <div class="setting-info">
                             <div class="setting-name">${habit.name}</div>
-                            ${habit.description ? `<div class="setting-detail">${habit.description}</div>` : ''}
+                            ${descriptionHtml}
                         </div>
                         <div class="setting-actions">
                             <button class="btn-icon unarchive" data-habit-id="${habit.id}" title="Unarchive">
@@ -2111,11 +2140,27 @@ class HabitTrackerApp {
                             </button>
                         </div>
                     </div>
-                `).join('');
+                `}).join('');
             }
         }
         
         habitsList.innerHTML = habitsHtml;
+
+        // Add expand/collapse functionality for descriptions
+        habitsList.querySelectorAll('.btn-expand').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const fullText = btn.dataset.fullText;
+                const textSpan = btn.previousElementSibling;
+                if (btn.textContent === 'Show more') {
+                    textSpan.textContent = fullText;
+                    btn.textContent = 'Show less';
+                } else {
+                    textSpan.textContent = fullText.substring(0, 100) + '...';
+                    btn.textContent = 'Show more';
+                }
+            });
+        });
 
         // Add event handlers for habit actions
         habitsList.querySelectorAll('.btn-icon.edit').forEach(btn => {
@@ -2158,12 +2203,27 @@ class HabitTrackerApp {
         if (this.dataManager.data.trackingFields.length === 0) {
             trackingList.innerHTML = '<div class="empty-state"><p>No tracking fields configured yet.</p></div>';
         } else {
-            trackingList.innerHTML = this.dataManager.data.trackingFields.map(field => `
+            trackingList.innerHTML = this.dataManager.data.trackingFields.map(field => {
+                // Truncate long descriptions
+                let descriptionHtml = '';
+                if (field.description) {
+                    const maxLength = 80;
+                    if (field.description.length > maxLength) {
+                        descriptionHtml = `<div class="setting-detail expandable-description">
+                            <span class="description-text">${field.description.substring(0, maxLength)}...</span>
+                            <button class="btn-expand" data-full-text="${field.description.replace(/"/g, '&quot;')}" style="color: var(--primary-color); background: none; border: none; padding: 0; margin-left: 4px; cursor: pointer; font-size: 0.875rem;">Show more</button>
+                        </div>`;
+                    } else {
+                        descriptionHtml = `<div class="setting-detail">${field.description}</div>`;
+                    }
+                }
+                
+                return `
                 <div class="setting-item">
                     <div class="setting-info">
                         <div class="setting-name">${field.name}</div>
                         <div class="setting-detail">Type: ${field.type}${field.unit ? `, Unit: ${field.unit}` : ''}</div>
-                        ${field.description ? `<div class="setting-detail">${field.description}</div>` : ''}
+                        ${descriptionHtml}
                     </div>
                     <div class="setting-actions">
                         <button class="btn-icon edit" data-field-id="${field.id}">
@@ -2180,7 +2240,24 @@ class HabitTrackerApp {
                         </button>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
+
+            // Add expand/collapse functionality for descriptions
+            trackingList.querySelectorAll('.btn-expand').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const fullText = btn.dataset.fullText;
+                    const textSpan = btn.previousElementSibling;
+                    const maxLength = 80;
+                    if (btn.textContent === 'Show more') {
+                        textSpan.textContent = fullText;
+                        btn.textContent = 'Show less';
+                    } else {
+                        textSpan.textContent = fullText.substring(0, maxLength) + '...';
+                        btn.textContent = 'Show more';
+                    }
+                });
+            });
 
             trackingList.querySelectorAll('.btn-icon.edit').forEach(btn => {
                 btn.addEventListener('click', () => {
@@ -2200,9 +2277,59 @@ class HabitTrackerApp {
             });
         }
 
+        // Event Templates
+        const templatesListEl = document.getElementById('templates-settings-list');
+        if (this.dataManager.data.templates.length === 0) {
+            templatesListEl.innerHTML = '<div class="empty-state"><p>No templates configured yet.</p></div>';
+        } else {
+            templatesListEl.innerHTML = this.dataManager.data.templates.map(template => `
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <div class="setting-name">${template.name}</div>
+                        <div class="setting-detail">Duration: ${template.duration === -1 ? 'All day' : template.duration + ' min'}</div>
+                        ${template.description ? `<div class="setting-detail collapsible-description" style="max-height: 3em; overflow: hidden;">${template.description}</div>` : ''}
+                    </div>
+                    <div class="setting-actions">
+                        <button class="btn-icon edit" data-template-id="${template.id}">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                        </button>
+                        <button class="btn-icon delete" data-template-id="${template.id}">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+            templatesListEl.querySelectorAll('.btn-icon.edit').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const templateId = btn.dataset.templateId;
+                    this.showTemplateModal(templateId);
+                });
+            });
+
+            templatesListEl.querySelectorAll('.btn-icon.delete').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    if (confirm('Delete this template?')) {
+                        await this.dataManager.deleteTemplate(btn.dataset.templateId);
+                        this.renderSettingsView();
+                    }
+                });
+            });
+        }
+
         // Buttons
         document.getElementById('add-habit-btn').onclick = () => this.showHabitModal();
         document.getElementById('add-tracking-btn').onclick = () => this.showTrackingModal();
+        const addTemplateBtn = document.getElementById('add-template-btn');
+        if (addTemplateBtn) {
+            addTemplateBtn.onclick = () => this.showTemplateModal();
+        }
         document.getElementById('import-data-btn').onclick = () => this.showImportModal();
         document.getElementById('export-data-btn').onclick = () => this.exportData();
         document.getElementById('clear-data-btn').onclick = () => this.clearData();

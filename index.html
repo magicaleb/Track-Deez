@@ -702,9 +702,28 @@
         </div>
     </div>
     
+    <!-- Toast container will be added dynamically by ui-helpers.js -->
+    
     <script src="app.js"></script>
     <script src="db-manager.js"></script>
     <script src="cloud-storage.js"></script>
     <script src="app-main.js"></script>
+    <script type="module">
+        // Import and initialize app enhancements
+        import { AppEnhancements } from './app-enhancements.js';
+        
+        // Wait for the main app to be ready
+        window.addEventListener('load', async () => {
+            // Wait a bit for app-main.js to initialize
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            if (window.habitApp) {
+                window.appEnhancements = new AppEnhancements(window.habitApp);
+                console.log('App enhancements loaded successfully');
+            } else {
+                console.warn('Main app not found, enhancements not loaded');
+            }
+        });
+    </script>
 </body>
 </html>

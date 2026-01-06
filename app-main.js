@@ -1110,6 +1110,16 @@ class HabitTrackerApp {
                     habitDescription = habitDescription ? `${habitDescription}<br><small>${progressInfo}</small>` : `<small>${progressInfo}</small>`;
                 }
                 
+                // Get streak info if enhancements are loaded
+                let streakBadge = '';
+                if (window.appEnhancements) {
+                    const streakInfo = window.appEnhancements.getHabitStreak(habit.id);
+                    if (streakInfo.current > 0) {
+                        const isMilestone = [7, 30, 100, 365].includes(streakInfo.current);
+                        streakBadge = `<span class="streak-badge ${isMilestone ? 'milestone' : ''}" title="Current streak: ${streakInfo.current} days">🔥 ${streakInfo.current}</span>`;
+                    }
+                }
+                
                 return `
                     <div class="habit-item ${completed ? 'completed' : ''} ${habit.isBuildUpHabit ? 'build-up-habit' : ''}" data-habit-id="${habit.id}">
                         <div class="habit-checkbox ${completed ? 'checked' : ''}">
@@ -1118,7 +1128,7 @@ class HabitTrackerApp {
                             </svg>
                         </div>
                         <div class="habit-info">
-                            <span class="habit-name">${habitName}</span>
+                            <span class="habit-name">${habitName} ${streakBadge}</span>
                             ${habitDescription ? `<span class="habit-description">${habitDescription}</span>` : ''}
                         </div>
                         ${habit.isBuildUpHabit ? '<span class="build-up-badge">📈</span>' : ''}
@@ -1709,7 +1719,11 @@ class HabitTrackerApp {
         const isRecurring = document.getElementById('event-is-recurring').checked;
         
         if (!name || !date || !startTime) {
-            alert('Please fill in all required fields');
+            if (window.appEnhancements) {
+                window.appEnhancements.showMessage('Please fill in all required fields', 'warning');
+            } else {
+                alert('Please fill in all required fields');
+            }
             return;
         }
         
@@ -1768,12 +1782,20 @@ class HabitTrackerApp {
         const duration = durationInput === '' ? -1 : parseInt(durationInput);
         
         if (!name) {
-            alert('Please enter an event name first');
+            if (window.appEnhancements) {
+                window.appEnhancements.showMessage('Please enter an event name first', 'warning');
+            } else {
+                alert('Please enter an event name first');
+            }
             return;
         }
         
         await this.dataManager.addTemplate(name, description, duration);
-        alert('Template saved!');
+        if (window.appEnhancements) {
+            window.appEnhancements.showMessage('Template saved!', 'success');
+        } else {
+            alert('Template saved!');
+        }
         this.renderSettingsView();
     }
 
@@ -1811,7 +1833,11 @@ class HabitTrackerApp {
         const duration = durationInput === '' ? -1 : parseInt(durationInput);
         
         if (!name) {
-            alert('Please enter a template name');
+            if (window.appEnhancements) {
+                window.appEnhancements.showMessage('Please enter a template name', 'warning');
+            } else {
+                alert('Please enter a template name');
+            }
             return;
         }
         
@@ -2413,17 +2439,29 @@ class HabitTrackerApp {
                 
                 // Validation
                 if (isNaN(startValue) || isNaN(goalValue) || isNaN(incrementValue) || isNaN(daysForIncrement)) {
-                    alert('Please fill in all required build-up habit fields with valid numbers');
+                    if (window.appEnhancements) {
+                        window.appEnhancements.showMessage('Please fill in all required build-up habit fields with valid numbers', 'warning');
+                    } else {
+                        alert('Please fill in all required build-up habit fields with valid numbers');
+                    }
                     return;
                 }
                 
                 if (startValue <= 0 || goalValue <= 0 || incrementValue <= 0 || daysForIncrement <= 0) {
-                    alert('All build-up values must be positive numbers greater than zero');
+                    if (window.appEnhancements) {
+                        window.appEnhancements.showMessage('All build-up values must be positive numbers greater than zero', 'warning');
+                    } else {
+                        alert('All build-up values must be positive numbers greater than zero');
+                    }
                     return;
                 }
                 
                 if (goalValue <= startValue) {
-                    alert('Goal Value must be greater than Starting Value');
+                    if (window.appEnhancements) {
+                        window.appEnhancements.showMessage('Goal Value must be greater than Starting Value', 'warning');
+                    } else {
+                        alert('Goal Value must be greater than Starting Value');
+                    }
                     return;
                 }
                 
@@ -2523,7 +2561,11 @@ class HabitTrackerApp {
                         const result = await this.dataManager.importData(importedData);
                         
                         if (result.success) {
-                            alert('Data imported successfully!');
+                            if (window.appEnhancements) {
+                                window.appEnhancements.showMessage('Data imported successfully!', 'success');
+                            } else {
+                                alert('Data imported successfully!');
+                            }
                             document.getElementById('import-modal').classList.remove('active');
                             document.getElementById('import-form').reset();
                             this.renderTodayView();
@@ -2531,10 +2573,18 @@ class HabitTrackerApp {
                             this.renderStatsView();
                             this.renderSettingsView();
                         } else {
-                            alert('Error importing data: ' + result.error);
+                            if (window.appEnhancements) {
+                                window.appEnhancements.showMessage('Error importing data: ' + result.error, 'error');
+                            } else {
+                                alert('Error importing data: ' + result.error);
+                            }
                         }
                     } catch (error) {
-                        alert('Invalid JSON file. Please make sure you selected a valid backup file.');
+                        if (window.appEnhancements) {
+                            window.appEnhancements.showMessage('Invalid JSON file. Please make sure you selected a valid backup file.', 'error');
+                        } else {
+                            alert('Invalid JSON file. Please make sure you selected a valid backup file.');
+                        }
                     }
                 };
                 reader.readAsText(file);

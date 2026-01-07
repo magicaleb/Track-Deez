@@ -2,10 +2,31 @@
 
 A Progressive Web App (PWA) habit tracker optimized for iPhone and iOS devices.
 
+## ✨ New Features (v2.0)
+
+### 🔥 Streak Tracking
+- **Current Streak Display**: See your active streak count next to each habit
+- **Longest Streak**: Track your personal best for each habit
+- **Milestone Celebrations**: Get rewarded at 7, 30, 100, and 365-day milestones
+- **Streak Badges**: Visual indicators with fire emoji for active streaks
+
+### 🎨 Enhanced UI/UX
+- **Toast Notifications**: Modern, non-intrusive notifications instead of alerts
+- **Loading States**: Skeleton screens and spinners for better perceived performance
+- **Dark Mode**: Automatic dark mode based on system preferences
+- **Smooth Animations**: Polished transitions and micro-interactions
+- **Accessibility**: Improved ARIA labels and reduced motion support
+
+### 🔔 Notifications (Coming Soon)
+- **Daily Reminders**: Get notified at your chosen time to track habits
+- **Per-Habit Reminders**: Set custom reminders for individual habits
+- **Milestone Alerts**: Celebrate when you hit streak milestones
+
 ## Features
 
 - 📱 Mobile-first design optimized for iPhone
 - ☁️ **Cloud Storage**: Sync your data across devices via GitHub
+- 🔥 **Streak Tracking**: Monitor and celebrate your habit streaks
 - 🔄 Offline functionality with service worker
 - 📦 Installable as a standalone app
 - 🎨 iOS-specific optimizations and styling
@@ -13,28 +34,31 @@ A Progressive Web App (PWA) habit tracker optimized for iPhone and iOS devices.
 - 📊 Habit tracking with statistics
 - 📅 Calendar and planner views
 - 💾 Local and cloud storage options
+- 🌙 Dark mode support
 
 ## Project Structure
 
 ```
 Track-Deez/
-├── index.html           # Main HTML entry point
-├── manifest.json        # PWA manifest with app metadata
-├── service-worker.js    # Service worker for offline functionality
-├── app.js              # Main application JavaScript
-├── styles.css          # Application styles with iOS optimizations
-├── icons/              # App icons for various sizes
-│   ├── icon-72x72.png
-│   ├── icon-96x96.png
-│   ├── icon-128x128.png
-│   ├── icon-144x144.png
-│   ├── icon-152x152.png
-│   ├── icon-167x167.png
-│   ├── icon-180x180.png
-│   ├── icon-192x192.png
-│   ├── icon-384x384.png
-│   └── icon-512x512.png
-└── README.md           # This file
+├── index.html              # Main HTML entry point
+├── manifest.json           # PWA manifest with app metadata
+├── service-worker.js       # Service worker for offline functionality
+├── app.js                  # PWA initialization
+├── app-main.js            # Main application logic
+├── app-enhancements.js    # New feature integrations
+├── db-manager.js          # IndexedDB manager
+├── cloud-storage.js       # Cloud sync functionality
+├── config.js              # App configuration
+├── styles.css             # Application styles with iOS optimizations
+├── modules/               # Modular features
+│   ├── streak-calculator.js
+│   ├── notification-manager.js
+│   └── ui-helpers.js
+├── utils/                 # Utility functions
+│   ├── constants.js
+│   └── date-utils.js
+├── icons/                 # App icons for various sizes
+└── README.md             # This file
 ```
 
 ## Getting Started

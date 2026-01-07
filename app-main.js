@@ -1110,6 +1110,16 @@ class HabitTrackerApp {
                     habitDescription = habitDescription ? `${habitDescription}<br><small>${progressInfo}</small>` : `<small>${progressInfo}</small>`;
                 }
                 
+                // Get streak info if enhancements are loaded
+                let streakBadge = '';
+                if (window.appEnhancements) {
+                    const streakInfo = window.appEnhancements.getHabitStreak(habit.id);
+                    if (streakInfo.current > 0) {
+                        const isMilestone = [7, 30, 100, 365].includes(streakInfo.current);
+                        streakBadge = `<span class="streak-badge ${isMilestone ? 'milestone' : ''}" title="Current streak: ${streakInfo.current} days">🔥 ${streakInfo.current}</span>`;
+                    }
+                }
+                
                 return `
                     <div class="habit-item ${completed ? 'completed' : ''} ${habit.isBuildUpHabit ? 'build-up-habit' : ''}" data-habit-id="${habit.id}">
                         <div class="habit-checkbox ${completed ? 'checked' : ''}">
@@ -1118,7 +1128,7 @@ class HabitTrackerApp {
                             </svg>
                         </div>
                         <div class="habit-info">
-                            <span class="habit-name">${habitName}</span>
+                            <span class="habit-name">${habitName} ${streakBadge}</span>
                             ${habitDescription ? `<span class="habit-description">${habitDescription}</span>` : ''}
                         </div>
                         ${habit.isBuildUpHabit ? '<span class="build-up-badge">📈</span>' : ''}
@@ -1709,7 +1719,11 @@ class HabitTrackerApp {
         const isRecurring = document.getElementById('event-is-recurring').checked;
         
         if (!name || !date || !startTime) {
-            alert('Please fill in all required fields');
+            if (window.appEnhancements) {
+                window.appEnhancements.showMessage('Please fill in all required fields', 'warning');
+            } else {
+                alert('Please fill in all required fields');
+            }
             return;
         }
         
@@ -1768,12 +1782,20 @@ class HabitTrackerApp {
         const duration = durationInput === '' ? -1 : parseInt(durationInput);
         
         if (!name) {
-            alert('Please enter an event name first');
+            if (window.appEnhancements) {
+                window.appEnhancements.showMessage('Please enter an event name first', 'warning');
+            } else {
+                alert('Please enter an event name first');
+            }
             return;
         }
         
         await this.dataManager.addTemplate(name, description, duration);
-        alert('Template saved!');
+        if (window.appEnhancements) {
+            window.appEnhancements.showMessage('Template saved!', 'success');
+        } else {
+            alert('Template saved!');
+        }
         this.renderSettingsView();
     }
 
@@ -1811,7 +1833,11 @@ class HabitTrackerApp {
         const duration = durationInput === '' ? -1 : parseInt(durationInput);
         
         if (!name) {
-            alert('Please enter a template name');
+            if (window.appEnhancements) {
+                window.appEnhancements.showMessage('Please enter a template name', 'warning');
+            } else {
+                alert('Please enter a template name');
+            }
             return;
         }
         
@@ -2033,11 +2059,25 @@ class HabitTrackerApp {
                         </div>`;
                     }
                     
+                    // Truncate long descriptions
+                    let descriptionHtml = '';
+                    if (habit.description) {
+                        const maxLength = 100;
+                        if (habit.description.length > maxLength) {
+                            descriptionHtml = `<div class="setting-detail expandable-description">
+                                <span class="description-text">${habit.description.substring(0, maxLength)}...</span>
+                                <button class="btn-expand" data-full-text="${habit.description.replace(/"/g, '&quot;')}" style="color: var(--primary-color); background: none; border: none; padding: 0; margin-left: 4px; cursor: pointer; font-size: 0.875rem;">Show more</button>
+                            </div>`;
+                        } else {
+                            descriptionHtml = `<div class="setting-detail">${habit.description}</div>`;
+                        }
+                    }
+                    
                     return `
                         <div class="setting-item ${habit.isBuildUpHabit ? 'build-up-habit' : ''}">
                             <div class="setting-info">
                                 <div class="setting-name">${habit.name}</div>
-                                ${habit.description ? `<div class="setting-detail">${habit.description}</div>` : ''}
+                                ${descriptionHtml}
                                 ${progressInfo}
                             </div>
                             <div class="setting-actions">
@@ -2063,11 +2103,26 @@ class HabitTrackerApp {
             // Archived habits
             if (archivedHabits.length > 0) {
                 habitsHtml += '<div class="subsection-label" style="margin-top: 1rem;">Archived Habits</div>';
-                habitsHtml += archivedHabits.map(habit => `
+                habitsHtml += archivedHabits.map(habit => {
+                    // Truncate long descriptions for archived habits too
+                    let descriptionHtml = '';
+                    if (habit.description) {
+                        const maxLength = 100;
+                        if (habit.description.length > maxLength) {
+                            descriptionHtml = `<div class="setting-detail expandable-description">
+                                <span class="description-text">${habit.description.substring(0, maxLength)}...</span>
+                                <button class="btn-expand" data-full-text="${habit.description.replace(/"/g, '&quot;')}" style="color: var(--primary-color); background: none; border: none; padding: 0; margin-left: 4px; cursor: pointer; font-size: 0.875rem;">Show more</button>
+                            </div>`;
+                        } else {
+                            descriptionHtml = `<div class="setting-detail">${habit.description}</div>`;
+                        }
+                    }
+                    
+                    return `
                     <div class="setting-item archived">
                         <div class="setting-info">
                             <div class="setting-name">${habit.name}</div>
-                            ${habit.description ? `<div class="setting-detail">${habit.description}</div>` : ''}
+                            ${descriptionHtml}
                         </div>
                         <div class="setting-actions">
                             <button class="btn-icon unarchive" data-habit-id="${habit.id}" title="Unarchive">
@@ -2085,11 +2140,27 @@ class HabitTrackerApp {
                             </button>
                         </div>
                     </div>
-                `).join('');
+                `}).join('');
             }
         }
         
         habitsList.innerHTML = habitsHtml;
+
+        // Add expand/collapse functionality for descriptions
+        habitsList.querySelectorAll('.btn-expand').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const fullText = btn.dataset.fullText;
+                const textSpan = btn.previousElementSibling;
+                if (btn.textContent === 'Show more') {
+                    textSpan.textContent = fullText;
+                    btn.textContent = 'Show less';
+                } else {
+                    textSpan.textContent = fullText.substring(0, 100) + '...';
+                    btn.textContent = 'Show more';
+                }
+            });
+        });
 
         // Add event handlers for habit actions
         habitsList.querySelectorAll('.btn-icon.edit').forEach(btn => {
@@ -2132,12 +2203,27 @@ class HabitTrackerApp {
         if (this.dataManager.data.trackingFields.length === 0) {
             trackingList.innerHTML = '<div class="empty-state"><p>No tracking fields configured yet.</p></div>';
         } else {
-            trackingList.innerHTML = this.dataManager.data.trackingFields.map(field => `
+            trackingList.innerHTML = this.dataManager.data.trackingFields.map(field => {
+                // Truncate long descriptions
+                let descriptionHtml = '';
+                if (field.description) {
+                    const maxLength = 80;
+                    if (field.description.length > maxLength) {
+                        descriptionHtml = `<div class="setting-detail expandable-description">
+                            <span class="description-text">${field.description.substring(0, maxLength)}...</span>
+                            <button class="btn-expand" data-full-text="${field.description.replace(/"/g, '&quot;')}" style="color: var(--primary-color); background: none; border: none; padding: 0; margin-left: 4px; cursor: pointer; font-size: 0.875rem;">Show more</button>
+                        </div>`;
+                    } else {
+                        descriptionHtml = `<div class="setting-detail">${field.description}</div>`;
+                    }
+                }
+                
+                return `
                 <div class="setting-item">
                     <div class="setting-info">
                         <div class="setting-name">${field.name}</div>
                         <div class="setting-detail">Type: ${field.type}${field.unit ? `, Unit: ${field.unit}` : ''}</div>
-                        ${field.description ? `<div class="setting-detail">${field.description}</div>` : ''}
+                        ${descriptionHtml}
                     </div>
                     <div class="setting-actions">
                         <button class="btn-icon edit" data-field-id="${field.id}">
@@ -2154,7 +2240,24 @@ class HabitTrackerApp {
                         </button>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
+
+            // Add expand/collapse functionality for descriptions
+            trackingList.querySelectorAll('.btn-expand').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const fullText = btn.dataset.fullText;
+                    const textSpan = btn.previousElementSibling;
+                    const maxLength = 80;
+                    if (btn.textContent === 'Show more') {
+                        textSpan.textContent = fullText;
+                        btn.textContent = 'Show less';
+                    } else {
+                        textSpan.textContent = fullText.substring(0, maxLength) + '...';
+                        btn.textContent = 'Show more';
+                    }
+                });
+            });
 
             trackingList.querySelectorAll('.btn-icon.edit').forEach(btn => {
                 btn.addEventListener('click', () => {
@@ -2174,9 +2277,59 @@ class HabitTrackerApp {
             });
         }
 
+        // Event Templates
+        const templatesListEl = document.getElementById('templates-settings-list');
+        if (this.dataManager.data.templates.length === 0) {
+            templatesListEl.innerHTML = '<div class="empty-state"><p>No templates configured yet.</p></div>';
+        } else {
+            templatesListEl.innerHTML = this.dataManager.data.templates.map(template => `
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <div class="setting-name">${template.name}</div>
+                        <div class="setting-detail">Duration: ${template.duration === -1 ? 'All day' : template.duration + ' min'}</div>
+                        ${template.description ? `<div class="setting-detail collapsible-description" style="max-height: 3em; overflow: hidden;">${template.description}</div>` : ''}
+                    </div>
+                    <div class="setting-actions">
+                        <button class="btn-icon edit" data-template-id="${template.id}">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                        </button>
+                        <button class="btn-icon delete" data-template-id="${template.id}">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+            templatesListEl.querySelectorAll('.btn-icon.edit').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const templateId = btn.dataset.templateId;
+                    this.showTemplateModal(templateId);
+                });
+            });
+
+            templatesListEl.querySelectorAll('.btn-icon.delete').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    if (confirm('Delete this template?')) {
+                        await this.dataManager.deleteTemplate(btn.dataset.templateId);
+                        this.renderSettingsView();
+                    }
+                });
+            });
+        }
+
         // Buttons
         document.getElementById('add-habit-btn').onclick = () => this.showHabitModal();
         document.getElementById('add-tracking-btn').onclick = () => this.showTrackingModal();
+        const addTemplateBtn = document.getElementById('add-template-btn');
+        if (addTemplateBtn) {
+            addTemplateBtn.onclick = () => this.showTemplateModal();
+        }
         document.getElementById('import-data-btn').onclick = () => this.showImportModal();
         document.getElementById('export-data-btn').onclick = () => this.exportData();
         document.getElementById('clear-data-btn').onclick = () => this.clearData();
@@ -2413,17 +2566,29 @@ class HabitTrackerApp {
                 
                 // Validation
                 if (isNaN(startValue) || isNaN(goalValue) || isNaN(incrementValue) || isNaN(daysForIncrement)) {
-                    alert('Please fill in all required build-up habit fields with valid numbers');
+                    if (window.appEnhancements) {
+                        window.appEnhancements.showMessage('Please fill in all required build-up habit fields with valid numbers', 'warning');
+                    } else {
+                        alert('Please fill in all required build-up habit fields with valid numbers');
+                    }
                     return;
                 }
                 
                 if (startValue <= 0 || goalValue <= 0 || incrementValue <= 0 || daysForIncrement <= 0) {
-                    alert('All build-up values must be positive numbers greater than zero');
+                    if (window.appEnhancements) {
+                        window.appEnhancements.showMessage('All build-up values must be positive numbers greater than zero', 'warning');
+                    } else {
+                        alert('All build-up values must be positive numbers greater than zero');
+                    }
                     return;
                 }
                 
                 if (goalValue <= startValue) {
-                    alert('Goal Value must be greater than Starting Value');
+                    if (window.appEnhancements) {
+                        window.appEnhancements.showMessage('Goal Value must be greater than Starting Value', 'warning');
+                    } else {
+                        alert('Goal Value must be greater than Starting Value');
+                    }
                     return;
                 }
                 
@@ -2523,7 +2688,11 @@ class HabitTrackerApp {
                         const result = await this.dataManager.importData(importedData);
                         
                         if (result.success) {
-                            alert('Data imported successfully!');
+                            if (window.appEnhancements) {
+                                window.appEnhancements.showMessage('Data imported successfully!', 'success');
+                            } else {
+                                alert('Data imported successfully!');
+                            }
                             document.getElementById('import-modal').classList.remove('active');
                             document.getElementById('import-form').reset();
                             this.renderTodayView();
@@ -2531,10 +2700,18 @@ class HabitTrackerApp {
                             this.renderStatsView();
                             this.renderSettingsView();
                         } else {
-                            alert('Error importing data: ' + result.error);
+                            if (window.appEnhancements) {
+                                window.appEnhancements.showMessage('Error importing data: ' + result.error, 'error');
+                            } else {
+                                alert('Error importing data: ' + result.error);
+                            }
                         }
                     } catch (error) {
-                        alert('Invalid JSON file. Please make sure you selected a valid backup file.');
+                        if (window.appEnhancements) {
+                            window.appEnhancements.showMessage('Invalid JSON file. Please make sure you selected a valid backup file.', 'error');
+                        } else {
+                            alert('Invalid JSON file. Please make sure you selected a valid backup file.');
+                        }
                     }
                 };
                 reader.readAsText(file);
@@ -2580,7 +2757,11 @@ class HabitTrackerApp {
             const endMinutes = this.plannerManager.timeToMinutes(endTime);
             
             if (startMinutes >= endMinutes) {
-                alert('End time must be after start time');
+                if (window.appEnhancements) {
+                    window.appEnhancements.showMessage('End time must be after start time', 'warning');
+                } else {
+                    alert('End time must be after start time');
+                }
                 return;
             }
             

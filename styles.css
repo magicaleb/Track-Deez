@@ -468,6 +468,173 @@ input, textarea, select {
     border-color: var(--primary-color);
 }
 
+/* Quick Tasks */
+.pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: var(--background);
+}
+
+.pill.subtle {
+    background: #eef2ff;
+    color: var(--primary-color);
+}
+
+.quick-time-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: var(--surface);
+    padding: 0.75rem;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px var(--shadow);
+}
+
+.quick-time-row input {
+    flex: 1;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 1.1rem;
+    background: var(--background);
+}
+
+.time-unit {
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.quick-preset-row {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.75rem;
+}
+
+.chip-btn {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-primary);
+    padding: 0.5rem 0.9rem;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 600;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.chip-btn:hover, .chip-btn:active {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.chip-btn.ghost {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--text-secondary);
+}
+
+.quick-hint {
+    margin-top: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.quick-card {
+    background: var(--surface);
+    border-radius: 14px;
+    padding: 1rem;
+    box-shadow: 0 1px 4px var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.quick-card-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.quick-name {
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: var(--text-primary);
+}
+
+.quick-meta {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-top: 0.1rem;
+}
+
+.quick-progress {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+.quick-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.25rem;
+}
+
+.quick-actions .btn-primary {
+    flex: 1;
+}
+
+.quick-actions .chip-btn {
+    flex-basis: 45%;
+    text-align: center;
+}
+
+.quick-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.quick-card.completed {
+    border: 1px solid var(--border);
+    background: #f8fafc;
+}
+
+.quick-feedback {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.quick-feedback.success {
+    color: var(--success);
+}
+
+.quick-estimate-row {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+}
+
+.quick-estimate-row .form-group {
+    flex: 1;
+}
+
+@media (max-width: 640px) {
+    .quick-estimate-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .quick-actions {
+        flex-direction: column;
+    }
+}
+
 .range-btn:active {
     transform: scale(0.95);
 }

@@ -53,6 +53,13 @@
                 </svg>
                 <span>Planner</span>
             </button>
+            <button class="nav-btn" data-view="quick" aria-label="Navigate to quick tasks">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                </svg>
+                <span>Quick</span>
+            </button>
             <button class="nav-btn" data-view="stats">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="12" y1="20" x2="12" y2="10"/>
@@ -173,6 +180,78 @@
                         </div>
                         <div class="planner-events" id="planner-events"></div>
                     </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Quick Tasks View -->
+        <div id="quick-view" class="view">
+            <header class="view-header">
+                <h1>Quick Tasks</h1>
+                <p style="color: var(--text-secondary); margin-top: 0.25rem;">Enter how many minutes you have and pick a task that fits.</p>
+            </header>
+
+            <main class="view-content">
+                <div class="section">
+                    <div class="section-header">
+                        <div>
+                            <h2>Time available</h2>
+                            <div style="color: var(--text-secondary); font-size: 0.9rem;">Filter tasks to what you can finish right now.</div>
+                        </div>
+                        <span class="pill subtle">Beta</span>
+                    </div>
+                    <div class="quick-time-row">
+                        <input type="number" id="available-minutes" min="0" placeholder="e.g., 10">
+                        <span class="time-unit">minutes</span>
+                    </div>
+                    <div class="quick-preset-row">
+                        <button type="button" class="chip-btn" data-time-preset="5">5 min</button>
+                        <button type="button" class="chip-btn" data-time-preset="10">10 min</button>
+                        <button type="button" class="chip-btn" data-time-preset="15">15 min</button>
+                        <button type="button" class="chip-btn" data-time-preset="30">30 min</button>
+                        <button type="button" class="chip-btn" data-time-preset="45">45 min</button>
+                    </div>
+                    <div class="quick-hint">Flexible tasks always show up, even if your window is tiny.</div>
+                </div>
+
+                <div class="section">
+                    <div class="section-header">
+                        <h2>Stash a task</h2>
+                        <div id="quick-feedback" class="quick-feedback"></div>
+                    </div>
+                    <form id="quick-task-form" class="quick-card">
+                        <div class="form-group">
+                            <label for="quick-task-name">What do you want to tackle?</label>
+                            <input type="text" id="quick-task-name" placeholder="e.g., Clean the toilets" required>
+                        </div>
+                        <div class="quick-estimate-row">
+                            <div class="form-group">
+                                <label for="quick-task-estimate">Estimated time (minutes)</label>
+                                <input type="number" id="quick-task-estimate" min="1" placeholder="10">
+                            </div>
+                            <label class="checkbox-label" style="margin-top: 1.75rem;">
+                                <input type="checkbox" id="quick-task-flexible">
+                                <span>Flexible / open-ended</span>
+                            </label>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary">Save task</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="section">
+                    <div class="section-header">
+                        <h2>Tasks that fit right now</h2>
+                    </div>
+                    <div id="quick-task-list" class="quick-list"></div>
+                </div>
+
+                <div class="section">
+                    <div class="section-header">
+                        <h2>Completed</h2>
+                    </div>
+                    <div id="quick-completed-list" class="quick-list"></div>
                 </div>
             </main>
         </div>
@@ -720,6 +799,7 @@
     <script src="db-manager.js"></script>
     <script src="cloud-storage.js"></script>
     <script src="app-main.js"></script>
+    <script src="quick-tasks.js"></script>
     <script type="module">
         // Import and initialize app enhancements
         import { AppEnhancements } from './app-enhancements.js';

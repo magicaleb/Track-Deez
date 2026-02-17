@@ -594,6 +594,10 @@ input, textarea, select {
     background: linear-gradient(135deg, rgba(34,197,94,0.06), rgba(248,250,252,0.95));
 }
 
+.hidden {
+    display: none !important;
+}
+
 .quick-feedback {
     font-size: 0.9rem;
     color: var(--text-secondary);

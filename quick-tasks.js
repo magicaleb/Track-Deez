@@ -1,5 +1,6 @@
 class QuickTaskFeature {
     constructor() {
+        this.DEFAULT_TIME_FILTER = '15';
         this.storageKey = 'trackDeezQuickTasks';
         this.tasks = [];
         this.availableTime = '';
@@ -35,7 +36,7 @@ class QuickTaskFeature {
             this.tasks = [];
         }
         if (!this.availableTime) {
-            this.availableTime = '15';
+            this.availableTime = this.DEFAULT_TIME_FILTER;
         }
     }
 
@@ -223,16 +224,15 @@ class QuickTaskFeature {
     resetForm() {
         this.editingId = null;
         this.elements.form?.reset();
-        if (this.elements.flexibleInput) this.elements.flexibleInput.checked = false;
         this.updateFormState();
     }
 
     updateFormState() {
         if (this.elements.editIndicator) {
-            this.elements.editIndicator.style.display = this.editingId ? 'block' : 'none';
+            this.elements.editIndicator.classList.toggle('hidden', !this.editingId);
         }
         if (this.elements.cancelEditBtn) {
-            this.elements.cancelEditBtn.style.display = this.editingId ? 'block' : 'none';
+            this.elements.cancelEditBtn.classList.toggle('hidden', !this.editingId);
         }
         if (this.elements.submitBtn) {
             this.elements.submitBtn.textContent = this.editingId ? 'Update task' : 'Save task';
@@ -254,7 +254,6 @@ class QuickTaskFeature {
     }
 
     render() {
-        this.setPresetActive();
         this.renderActive();
         this.renderCompleted();
     }

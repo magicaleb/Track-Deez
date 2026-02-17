@@ -4,6 +4,7 @@ class QuickTaskFeature {
         this.tasks = [];
         this.availableTime = '';
         this.fallbackCounter = 0;
+        this.editingId = null;
         this.elements = {
             view: document.getElementById('quick-view'),
             list: document.getElementById('quick-task-list'),
@@ -12,9 +13,11 @@ class QuickTaskFeature {
             nameInput: document.getElementById('quick-task-name'),
             estimateInput: document.getElementById('quick-task-estimate'),
             flexibleInput: document.getElementById('quick-task-flexible'),
-            timeInput: document.getElementById('available-minutes'),
             presets: document.querySelectorAll('[data-time-preset]'),
-            feedback: document.getElementById('quick-feedback')
+            feedback: document.getElementById('quick-feedback'),
+            editIndicator: document.getElementById('quick-edit-indicator'),
+            cancelEditBtn: document.getElementById('quick-cancel-edit'),
+            submitBtn: document.getElementById('quick-submit-btn')
         };
         this.load();
         this.bindEvents();
@@ -31,8 +34,8 @@ class QuickTaskFeature {
         } catch (e) {
             this.tasks = [];
         }
-        if (this.elements.timeInput) {
-            this.elements.timeInput.value = this.availableTime;
+        if (!this.availableTime) {
+            this.availableTime = '15';
         }
     }
 
@@ -53,24 +56,10 @@ class QuickTaskFeature {
             });
         }
 
-        if (this.elements.timeInput) {
-            this.elements.timeInput.addEventListener('input', () => {
-                this.availableTime = this.elements.timeInput.value;
-                this.save();
-                this.render();
-            });
-        }
-
         if (this.elements.presets) {
             this.elements.presets.forEach(btn => {
                 btn.addEventListener('click', () => {
-                    const value = btn.dataset.timePreset;
-                    this.availableTime = value;
-                    if (this.elements.timeInput) {
-                        this.elements.timeInput.value = value;
-                    }
-                    this.save();
-                    this.render();
+                    this.setFilterMinutes(btn.dataset.timePreset);
                 });
             });
         }
@@ -86,6 +75,8 @@ class QuickTaskFeature {
                     this.logTime(taskId, true);
                 } else if (action === 'progress') {
                     this.logTime(taskId, false);
+                } else if (action === 'edit') {
+                    this.startEdit(taskId);
                 }
             });
         }
@@ -102,6 +93,13 @@ class QuickTaskFeature {
                 }
             });
         }
+
+        if (this.elements.cancelEditBtn) {
+            this.elements.cancelEditBtn.addEventListener('click', () => this.resetForm());
+        }
+
+        this.setPresetActive();
+        this.updateFormState();
     }
 
     addTask() {
@@ -120,18 +118,28 @@ class QuickTaskFeature {
             return;
         }
 
-        this.tasks.push({
-            id: this.generateTaskId(),
-            name,
-            estimateMinutes,
-            flexible,
-            logs: [],
-            completed: false,
-            createdAt: new Date().toISOString()
-        });
+        if (this.editingId) {
+            const existing = this.tasks.find(t => t.id === this.editingId);
+            if (existing) {
+                existing.name = name;
+                existing.estimateMinutes = estimateMinutes;
+                existing.flexible = flexible;
+                this.showFeedback('Task updated.', 'success');
+            }
+        } else {
+            this.tasks.push({
+                id: this.generateTaskId(),
+                name,
+                estimateMinutes,
+                flexible,
+                logs: [],
+                completed: false,
+                createdAt: new Date().toISOString()
+            });
+            this.showFeedback('Task saved for your next free pocket of time.', 'success');
+        }
 
-        this.elements.form?.reset();
-        this.showFeedback('Task saved for your next free pocket of time.', 'success');
+        this.resetForm();
         this.save();
         this.render();
     }
@@ -202,7 +210,51 @@ class QuickTaskFeature {
         this.render();
     }
 
+    startEdit(taskId) {
+        const task = this.tasks.find(t => t.id === taskId);
+        if (!task) return;
+        this.editingId = taskId;
+        if (this.elements.nameInput) this.elements.nameInput.value = task.name;
+        if (this.elements.estimateInput) this.elements.estimateInput.value = task.estimateMinutes || '';
+        if (this.elements.flexibleInput) this.elements.flexibleInput.checked = !!task.flexible;
+        this.updateFormState();
+    }
+
+    resetForm() {
+        this.editingId = null;
+        this.elements.form?.reset();
+        if (this.elements.flexibleInput) this.elements.flexibleInput.checked = false;
+        this.updateFormState();
+    }
+
+    updateFormState() {
+        if (this.elements.editIndicator) {
+            this.elements.editIndicator.style.display = this.editingId ? 'block' : 'none';
+        }
+        if (this.elements.cancelEditBtn) {
+            this.elements.cancelEditBtn.style.display = this.editingId ? 'block' : 'none';
+        }
+        if (this.elements.submitBtn) {
+            this.elements.submitBtn.textContent = this.editingId ? 'Update task' : 'Save task';
+        }
+    }
+
+    setFilterMinutes(value) {
+        this.availableTime = value;
+        this.save();
+        this.setPresetActive();
+        this.render();
+    }
+
+    setPresetActive() {
+        if (!this.elements.presets) return;
+        this.elements.presets.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.timePreset === this.availableTime);
+        });
+    }
+
     render() {
+        this.setPresetActive();
         this.renderActive();
         this.renderCompleted();
     }
@@ -216,7 +268,7 @@ class QuickTaskFeature {
             this.elements.list.innerHTML = `
                 <div class="empty-state">
                     <p>${hasFilter ? 'No tasks fit this time window.' : 'Add a few tasks to get started.'}</p>
-                    <small style="color: var(--text-secondary);">Flexible tasks always show, or clear the minutes field to see everything.</small>
+                    <small style="color: var(--text-secondary);">Try another time button or mark tasks as flexible.</small>
                 </div>
             `;
             return;
@@ -238,6 +290,7 @@ class QuickTaskFeature {
                     </div>
                     <div class="quick-progress">${progressLabel}</div>
                     <div class="quick-actions">
+                        <button class="chip-btn ghost" data-action="edit" data-task-id="${task.id}">Edit</button>
                         <button class="chip-btn" data-action="progress" data-task-id="${task.id}">Log progress</button>
                         <button class="btn-primary" data-action="complete" data-task-id="${task.id}">Complete</button>
                     </div>

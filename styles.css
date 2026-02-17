@@ -485,28 +485,9 @@ input, textarea, select {
     color: var(--primary-color);
 }
 
-.quick-time-row {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    background: var(--surface);
-    padding: 0.75rem;
-    border-radius: 12px;
-    box-shadow: 0 1px 3px var(--shadow);
-}
-
-.quick-time-row input {
-    flex: 1;
-    padding: 0.75rem;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    font-size: 1.1rem;
-    background: var(--background);
-}
-
-.time-unit {
-    color: var(--text-secondary);
-    font-weight: 600;
+.quick-view-content {
+    background: linear-gradient(180deg, #eef2ff 0%, #f8fafc 45%, #ffffff 100%);
+    padding: 1rem;
 }
 
 .quick-preset-row {
@@ -517,8 +498,8 @@ input, textarea, select {
 }
 
 .chip-btn {
-    border: 1px solid var(--border);
-    background: var(--surface);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    background: rgba(255, 255, 255, 0.9);
     color: var(--text-primary);
     padding: 0.5rem 0.9rem;
     border-radius: 999px;
@@ -529,14 +510,21 @@ input, textarea, select {
 }
 
 .chip-btn:hover, .chip-btn:active {
-    border-color: var(--primary-color);
-    color: var(--primary-color);
+    border-color: var(--primary-dark);
+    color: var(--primary-dark);
 }
 
 .chip-btn.ghost {
     background: transparent;
     border-color: var(--border);
     color: var(--text-secondary);
+}
+
+.chip-btn.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+    box-shadow: 0 6px 18px rgba(99, 102, 241, 0.2);
 }
 
 .quick-hint {
@@ -546,13 +534,14 @@ input, textarea, select {
 }
 
 .quick-card {
-    background: var(--surface);
+    background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(255,255,255,0.95));
     border-radius: 14px;
     padding: 1rem;
-    box-shadow: 0 1px 4px var(--shadow);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    border: 1px solid rgba(99,102,241,0.12);
 }
 
 .quick-card-header {
@@ -601,8 +590,8 @@ input, textarea, select {
 }
 
 .quick-card.completed {
-    border: 1px solid var(--border);
-    background: #f8fafc;
+    border: 1px solid rgba(34,197,94,0.2);
+    background: linear-gradient(135deg, rgba(34,197,94,0.06), rgba(248,250,252,0.95));
 }
 
 .quick-feedback {

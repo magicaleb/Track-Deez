@@ -1072,6 +1072,7 @@ class HabitTrackerApp {
         if (view === 'planner') this.renderPlannerView();
         if (view === 'stats') this.renderStatsView();
         if (view === 'settings') this.renderSettingsView();
+        if (view === 'quick' && window.quickTaskFeature) window.quickTaskFeature.render();
     }
 
     // Today View

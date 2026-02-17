@@ -490,6 +490,77 @@ input, textarea, select {
     padding: 1rem;
 }
 
+.quick-primary-section {
+    background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(255,255,255,0.95));
+    border-radius: 12px;
+    padding: 1rem;
+    border: 1px solid rgba(99,102,241,0.15);
+    margin-bottom: 1rem;
+}
+
+.quick-secondary-section {
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+}
+
+.quick-add-section {
+    background: var(--surface);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 0;
+}
+
+.quick-add-summary {
+    padding: 1rem;
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+}
+
+.quick-add-summary::-webkit-details-marker {
+    display: none;
+}
+
+.quick-add-summary h2 {
+    font-size: 1rem;
+    margin: 0;
+}
+
+.quick-form-compact {
+    padding: 0 1rem 1rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.form-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-end;
+}
+
+.form-group-small {
+    flex: 0 0 100px;
+}
+
+.form-checkboxes {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.task-count {
+    background: rgba(99,102,241,0.1);
+    color: var(--primary-color);
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
 .quick-preset-row {
     display: flex;
     gap: 0.5rem;
@@ -544,6 +615,113 @@ input, textarea, select {
     border: 1px solid rgba(99,102,241,0.12);
 }
 
+.quick-card-compact {
+    background: var(--surface);
+    border-radius: 8px;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    transition: all 0.2s;
+}
+
+.quick-card-compact:hover {
+    border-color: var(--primary-light);
+    box-shadow: 0 2px 6px rgba(99,102,241,0.1);
+}
+
+.quick-card-compact.completed {
+    background: rgba(34,197,94,0.05);
+    border-color: rgba(34,197,94,0.2);
+}
+
+.quick-card-main {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.quick-card-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.quick-name-compact {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    margin-bottom: 0.15rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.quick-meta-compact {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+}
+
+.quick-actions-compact {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.btn-action {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.btn-action:hover {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+}
+
+.btn-action:active {
+    transform: translateY(0);
+}
+
+.btn-icon {
+    background: transparent;
+    border: none;
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 0.25rem;
+    opacity: 0.6;
+    transition: all 0.2s;
+}
+
+.btn-icon:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.btn-secondary-compact {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.btn-secondary-compact:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
 .quick-card-header {
     display: flex;
     justify-content: space-between;
@@ -586,12 +764,22 @@ input, textarea, select {
 .quick-list {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.5rem;
 }
 
 .quick-card.completed {
     border: 1px solid rgba(34,197,94,0.2);
     background: linear-gradient(135deg, rgba(34,197,94,0.06), rgba(248,250,252,0.95));
+}
+
+@media (max-width: 640px) {
+    .quick-actions-compact {
+        flex-wrap: wrap;
+    }
+    
+    .btn-action {
+        flex: 1 1 auto;
+    }
 }
 
 .hidden {

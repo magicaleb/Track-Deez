@@ -1,6 +1,6 @@
 class QuickTaskFeature {
     constructor() {
-        this.DEFAULT_TIME_FILTER = '15';
+        this.DEFAULT_TIME_FILTER = '';
         this.storageKey = 'trackDeezQuickTasks';
         this.tasks = [];
         this.availableTime = '';
@@ -14,11 +14,13 @@ class QuickTaskFeature {
             nameInput: document.getElementById('quick-task-name'),
             estimateInput: document.getElementById('quick-task-estimate'),
             flexibleInput: document.getElementById('quick-task-flexible'),
+            recurringInput: document.getElementById('quick-task-recurring'),
             presets: document.querySelectorAll('[data-time-preset]'),
             feedback: document.getElementById('quick-feedback'),
             editIndicator: document.getElementById('quick-edit-indicator'),
             cancelEditBtn: document.getElementById('quick-cancel-edit'),
-            submitBtn: document.getElementById('quick-submit-btn')
+            submitBtn: document.getElementById('quick-submit-btn'),
+            taskCount: document.getElementById('quick-task-count')
         };
         this.load();
         this.bindEvents();
@@ -72,12 +74,12 @@ class QuickTaskFeature {
                 const action = button.dataset.action;
                 const taskId = button.dataset.taskId;
 
-                if (action === 'complete') {
-                    this.logTime(taskId, true);
-                } else if (action === 'progress') {
-                    this.logTime(taskId, false);
+                if (action === 'work') {
+                    this.logWork(taskId);
                 } else if (action === 'edit') {
                     this.startEdit(taskId);
+                } else if (action === 'delete') {
+                    this.deleteTask(taskId);
                 }
             });
         }
@@ -107,15 +109,16 @@ class QuickTaskFeature {
         const name = (this.elements.nameInput?.value || '').trim();
         const estimateValue = (this.elements.estimateInput?.value || '').trim();
         const flexible = !!this.elements.flexibleInput?.checked;
+        const recurring = !!this.elements.recurringInput?.checked;
 
         if (!name) {
-            this.showFeedback('Give the task a short name so you recognize it later.');
+            this.showFeedback('Please enter a task name');
             return;
         }
 
         const estimateMinutes = estimateValue === '' ? null : parseInt(estimateValue, 10);
         if (estimateValue !== '' && (isNaN(estimateMinutes) || estimateMinutes <= 0)) {
-            this.showFeedback('Estimated time should be a positive number of minutes.');
+            this.showFeedback('Estimated time should be a positive number');
             return;
         }
 
@@ -125,7 +128,8 @@ class QuickTaskFeature {
                 existing.name = name;
                 existing.estimateMinutes = estimateMinutes;
                 existing.flexible = flexible;
-                this.showFeedback('Task updated.', 'success');
+                existing.recurring = recurring;
+                this.showFeedback('Task updated', 'success');
             }
         } else {
             this.tasks.push({
@@ -133,11 +137,12 @@ class QuickTaskFeature {
                 name,
                 estimateMinutes,
                 flexible,
+                recurring,
                 logs: [],
                 completed: false,
                 createdAt: new Date().toISOString()
             });
-            this.showFeedback('Task saved for your next free pocket of time.', 'success');
+            this.showFeedback('Task added', 'success');
         }
 
         this.resetForm();
@@ -163,7 +168,13 @@ class QuickTaskFeature {
                 return task.estimateMinutes <= available;
             }
             return true;
-        }).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        }).sort((a, b) => {
+            // Sort by estimate time (shortest first), then by created date
+            const aEst = a.estimateMinutes || 999999;
+            const bEst = b.estimateMinutes || 999999;
+            if (aEst !== bEst) return aEst - bEst;
+            return new Date(a.createdAt) - new Date(b.createdAt);
+        });
     }
 
     getCompletedTasks() {
@@ -203,6 +214,61 @@ class QuickTaskFeature {
         this.render();
     }
 
+    logWork(taskId) {
+        const task = this.tasks.find(t => t.id === taskId);
+        if (!task) return;
+
+        const input = prompt('How many minutes did you work on this?');
+        if (input === null) return;
+
+        const minutes = parseInt(input, 10);
+        if (isNaN(minutes) || minutes <= 0) {
+            this.showFeedback('Please enter a positive number', 'error');
+            return;
+        }
+
+        const complete = confirm('Did you complete this task?');
+        
+        task.logs = task.logs || [];
+        task.logs.push({
+            minutes,
+            type: complete ? 'complete' : 'progress',
+            timestamp: new Date().toISOString()
+        });
+
+        if (complete) {
+            // Check if task is recurring
+            if (task.recurring) {
+                // For recurring tasks, mark complete but it will reopen
+                task.completed = true;
+                setTimeout(() => {
+                    task.completed = false;
+                    this.save();
+                    this.render();
+                    this.showFeedback('Recurring task reopened', 'success');
+                }, 500);
+            } else {
+                task.completed = true;
+            }
+        }
+
+        this.save();
+        this.render();
+        
+        const msg = complete ? 
+            (task.recurring ? `${minutes} min logged. Task will reopen as it's recurring.` : `${minutes} min logged. Task completed!`) : 
+            `${minutes} min logged as progress`;
+        this.showFeedback(msg, 'success');
+    }
+
+    deleteTask(taskId) {
+        if (!confirm('Delete this task?')) return;
+        this.tasks = this.tasks.filter(t => t.id !== taskId);
+        this.save();
+        this.render();
+        this.showFeedback('Task deleted', 'success');
+    }
+
     restartTask(taskId) {
         const task = this.tasks.find(t => t.id === taskId);
         if (!task) return;
@@ -218,7 +284,12 @@ class QuickTaskFeature {
         if (this.elements.nameInput) this.elements.nameInput.value = task.name;
         if (this.elements.estimateInput) this.elements.estimateInput.value = task.estimateMinutes || '';
         if (this.elements.flexibleInput) this.elements.flexibleInput.checked = !!task.flexible;
+        if (this.elements.recurringInput) this.elements.recurringInput.checked = !!task.recurring;
         this.updateFormState();
+        
+        // Open the details element if it exists
+        const details = this.elements.form?.closest('details');
+        if (details) details.open = true;
     }
 
     resetForm() {
@@ -235,7 +306,7 @@ class QuickTaskFeature {
             this.elements.cancelEditBtn.classList.toggle('hidden', !this.editingId);
         }
         if (this.elements.submitBtn) {
-            this.elements.submitBtn.textContent = this.editingId ? 'Update task' : 'Save task';
+            this.elements.submitBtn.textContent = this.editingId ? 'Update' : 'Save';
         }
     }
 
@@ -263,11 +334,15 @@ class QuickTaskFeature {
         const tasks = this.getActiveTasks();
         const hasFilter = this.availableTime !== '' && !isNaN(parseInt(this.availableTime, 10));
 
+        // Update task count
+        if (this.elements.taskCount) {
+            this.elements.taskCount.textContent = `${tasks.length} task${tasks.length !== 1 ? 's' : ''}`;
+        }
+
         if (tasks.length === 0) {
             this.elements.list.innerHTML = `
                 <div class="empty-state">
-                    <p>${hasFilter ? 'No tasks fit this time window.' : 'Add a few tasks to get started.'}</p>
-                    <small style="color: var(--text-secondary);">Try another time button or mark tasks as flexible.</small>
+                    <p>${hasFilter ? 'No tasks match this time filter' : 'No tasks yet. Add one below!'}</p>
                 </div>
             `;
             return;
@@ -275,23 +350,24 @@ class QuickTaskFeature {
 
         this.elements.list.innerHTML = tasks.map(task => {
             const total = this.getTotalMinutes(task);
-            const target = task.flexible ? 'Flexible / open-ended' : `${task.estimateMinutes || '—'} min`;
-            const progressLabel = this.formatProgressLabel(task, total);
-
+            const est = task.estimateMinutes || '?';
+            const progress = total > 0 ? ` • ${total} min logged` : '';
+            
             return `
-                <div class="quick-card">
-                    <div class="quick-card-header">
-                        <div>
-                            <div class="quick-name">${task.name}</div>
-                            <div class="quick-meta">${target}</div>
+                <div class="quick-card-compact">
+                    <div class="quick-card-main">
+                        <div class="quick-card-info">
+                            <div class="quick-name-compact">${task.name}</div>
+                            <div class="quick-meta-compact">
+                                ${task.flexible ? '⏱️ Flexible' : `⏱️ ${est} min`}${progress}
+                                ${task.recurring ? ' • 🔄 Recurring' : ''}
+                            </div>
                         </div>
-                        ${task.flexible ? '<span class="pill">Flexible</span>' : ''}
-                    </div>
-                    <div class="quick-progress">${progressLabel}</div>
-                    <div class="quick-actions">
-                        <button class="chip-btn ghost" data-action="edit" data-task-id="${task.id}">Edit</button>
-                        <button class="chip-btn" data-action="progress" data-task-id="${task.id}">Log progress</button>
-                        <button class="btn-primary" data-action="complete" data-task-id="${task.id}">Complete</button>
+                        <div class="quick-actions-compact">
+                            <button class="btn-action" data-action="work" data-task-id="${task.id}">Work on it</button>
+                            <button class="btn-icon" data-action="edit" data-task-id="${task.id}" title="Edit">✏️</button>
+                            <button class="btn-icon" data-action="delete" data-task-id="${task.id}" title="Delete">🗑️</button>
+                        </div>
                     </div>
                 </div>
             `;
@@ -302,23 +378,24 @@ class QuickTaskFeature {
         if (!this.elements.completed) return;
         const completed = this.getCompletedTasks();
         if (completed.length === 0) {
-            this.elements.completed.innerHTML = '<div class="empty-state"><p>No completed tasks yet.</p></div>';
+            this.elements.completed.innerHTML = '<div class="empty-state"><p>No completed tasks yet</p></div>';
             return;
         }
 
         this.elements.completed.innerHTML = completed.map(task => {
             const total = this.getTotalMinutes(task);
             const lastLogEntry = this.getLatestLog(task);
-            const lastLog = lastLogEntry ? new Date(lastLogEntry.timestamp).toLocaleString() : '';
+            const lastLog = lastLogEntry ? new Date(lastLogEntry.timestamp).toLocaleDateString() : '';
             return `
-                <div class="quick-card completed">
-                    <div class="quick-card-header">
-                        <div>
-                            <div class="quick-name">${task.name}</div>
-                            <div class="quick-meta">Finished • ${total} min recorded${task.flexible ? ' • Flexible' : ''}</div>
-                            ${lastLog ? `<div class="quick-meta">Last updated: ${lastLog}</div>` : ''}
+                <div class="quick-card-compact completed">
+                    <div class="quick-card-main">
+                        <div class="quick-card-info">
+                            <div class="quick-name-compact">${task.name}</div>
+                            <div class="quick-meta-compact">
+                                ✅ ${total} min • ${lastLog}${task.recurring ? ' • 🔄 Recurring' : ''}
+                            </div>
                         </div>
-                        <button class="chip-btn ghost" data-action="restart" data-task-id="${task.id}">Reopen</button>
+                        <button class="btn-secondary-compact" data-action="restart" data-task-id="${task.id}">Reopen</button>
                     </div>
                 </div>
             `;

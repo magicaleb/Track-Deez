@@ -1,6 +1,7 @@
 class QuickTaskFeature {
     constructor() {
         this.DEFAULT_TIME_FILTER = '';
+        this.RECURRING_TASK_REOPEN_DELAY = 500;
         this.storageKey = 'trackDeezQuickTasks';
         this.tasks = [];
         this.availableTime = '';
@@ -169,7 +170,7 @@ class QuickTaskFeature {
             }
             return true;
         }).sort((a, b) => {
-            // Sort by estimate time (shortest first), then by created date
+            // Sort by estimated time (shortest first), then by created date
             const aEst = a.estimateMinutes || 999999;
             const bEst = b.estimateMinutes || 999999;
             if (aEst !== bEst) return aEst - bEst;
@@ -246,7 +247,7 @@ class QuickTaskFeature {
                     this.save();
                     this.render();
                     this.showFeedback('Recurring task reopened', 'success');
-                }, 500);
+                }, this.RECURRING_TASK_REOPEN_DELAY);
             } else {
                 task.completed = true;
             }
@@ -255,10 +256,17 @@ class QuickTaskFeature {
         this.save();
         this.render();
         
-        const msg = complete ? 
-            (task.recurring ? `${minutes} min logged. Task will reopen as it's recurring.` : `${minutes} min logged. Task completed!`) : 
-            `${minutes} min logged as progress`;
-        this.showFeedback(msg, 'success');
+        this.showFeedback(this.getWorkLogMessage(minutes, complete, task.recurring), 'success');
+    }
+
+    getWorkLogMessage(minutes, complete, isRecurring) {
+        if (complete) {
+            if (isRecurring) {
+                return `${minutes} min logged. Task will reopen as it's recurring.`;
+            }
+            return `${minutes} min logged. Task completed!`;
+        }
+        return `${minutes} min logged as progress`;
     }
 
     deleteTask(taskId) {

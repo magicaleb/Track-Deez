@@ -1,4 +1,4 @@
-const CACHE_NAME = 'track-deez-v2';
+const CACHE_NAME = 'track-deez-v3-ux-improvements';
 const urlsToCache = [
   '/',
   '/index.html',

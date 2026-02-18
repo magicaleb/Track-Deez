@@ -192,58 +192,68 @@
             </header>
 
             <main class="view-content quick-view-content">
-                <div class="section">
+                <!-- Primary workflow: Select time and pick task -->
+                <div class="section quick-primary-section">
                     <div class="section-header">
                         <div>
-                            <h2>Time available</h2>
-                            <div style="color: var(--text-secondary); font-size: 0.9rem;">Filter tasks to what you can finish right now.</div>
+                            <h2>How much time do you have?</h2>
+                            <div style="color: var(--text-secondary); font-size: 0.9rem;">Pick a time to see matching tasks</div>
                         </div>
-                        <span class="pill subtle">Beta</span>
                     </div>
                     <div class="quick-preset-row">
                         <button type="button" class="chip-btn" data-time-preset="15">15 min</button>
                         <button type="button" class="chip-btn" data-time-preset="30">30 min</button>
                         <button type="button" class="chip-btn" data-time-preset="45">45 min</button>
                         <button type="button" class="chip-btn" data-time-preset="60">60 min</button>
+                        <button type="button" class="chip-btn" data-time-preset="">All</button>
                     </div>
-                    <div class="quick-hint">Flexible tasks always show up. Tap a time to see matches.</div>
                 </div>
 
                 <div class="section">
                     <div class="section-header">
-                        <h2>Stash a task</h2>
-                        <div id="quick-feedback" class="quick-feedback"></div>
-                    </div>
-                    <form id="quick-task-form" class="quick-card">
-                        <div class="form-group hidden" id="quick-edit-indicator">
-                            <div class="pill subtle">Editing saved task</div>
-                        </div>
-                        <div class="form-group">
-                            <label for="quick-task-name">What do you want to tackle?</label>
-                            <input type="text" id="quick-task-name" placeholder="e.g., Clean the toilets" required>
-                        </div>
-                        <div class="quick-estimate-row">
-                            <div class="form-group">
-                                <label for="quick-task-estimate">Estimated time (minutes)</label>
-                                <input type="number" id="quick-task-estimate" min="1" placeholder="10">
-                            </div>
-                            <label class="checkbox-label" style="margin-top: 1.75rem;">
-                                <input type="checkbox" id="quick-task-flexible">
-                                <span>Flexible / open-ended</span>
-                            </label>
-                        </div>
-                        <div class="form-actions">
-                            <button type="button" class="btn-secondary hidden" id="quick-cancel-edit">Cancel edit</button>
-                            <button type="submit" class="btn-primary" id="quick-submit-btn">Save task</button>
-                        </div>
-                    </form>
-                </div>
-
-                <div class="section">
-                    <div class="section-header">
-                        <h2>Tasks that fit right now</h2>
+                        <h2>Available tasks</h2>
+                        <span class="task-count" id="quick-task-count"></span>
                     </div>
                     <div id="quick-task-list" class="quick-list"></div>
+                </div>
+
+                <!-- Secondary: Add new tasks -->
+                <div class="section quick-secondary-section">
+                    <details class="quick-add-section">
+                        <summary class="quick-add-summary">
+                            <h2>➕ Add a new task</h2>
+                            <div id="quick-feedback" class="quick-feedback"></div>
+                        </summary>
+                        <form id="quick-task-form" class="quick-form-compact">
+                            <div class="form-group hidden" id="quick-edit-indicator">
+                                <div class="pill subtle">Editing task</div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="quick-task-name">Task name</label>
+                                    <input type="text" id="quick-task-name" placeholder="e.g., Practice piano" required>
+                                </div>
+                                <div class="form-group form-group-small">
+                                    <label for="quick-task-estimate">Minutes</label>
+                                    <input type="number" id="quick-task-estimate" min="1" placeholder="15">
+                                </div>
+                            </div>
+                            <div class="form-checkboxes">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="quick-task-flexible">
+                                    <span>Flexible timing</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="quick-task-recurring">
+                                    <span>Recurring (reopen after completion)</span>
+                                </label>
+                            </div>
+                            <div class="form-actions">
+                                <button type="button" class="btn-secondary hidden" id="quick-cancel-edit">Cancel</button>
+                                <button type="submit" class="btn-primary" id="quick-submit-btn">Save</button>
+                            </div>
+                        </form>
+                    </details>
                 </div>
 
                 <div class="section">

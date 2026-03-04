@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="TimeLens" />
+  <title>TimeLens • Do Now</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body data-page="focus">
+  <header class="topbar glass">
+    <div>
+      <h1>TimeLens</h1>
+      <p>Choose what fits your time, then execute fast.</p>
+    </div>
+    <a class="button ghost" href="./setup.html">Setup</a>
+  </header>
+
+  <main class="layout">
+    <section class="panel gradient">
+      <h2>Available time</h2>
+      <form id="time-form" class="row" novalidate>
+        <input id="available-minutes" type="number" min="1" max="1440" inputmode="numeric" placeholder="Minutes" />
+        <button class="button" type="submit">Apply</button>
+      </form>
+      <div class="chips" aria-label="Quick time presets">
+        <button class="chip" data-min="15" type="button">15m</button>
+        <button class="chip" data-min="30" type="button">30m</button>
+        <button class="chip" data-min="45" type="button">45m</button>
+        <button class="chip" data-min="60" type="button">60m</button>
+        <button id="clear-filter" class="chip subtle" type="button">Show all</button>
+      </div>
+      <p id="filter-status" class="muted" aria-live="polite"></p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Suggested next</h2>
+        <label class="switch"><input id="include-flex" type="checkbox" checked /> Flexible fallback</label>
+      </div>
+      <div id="empty-state" class="empty" hidden>No match yet. Try “Show all” or add flexible tasks in Setup.</div>
+      <ul id="focus-task-list" class="task-list" aria-live="polite"></ul>
+    </section>
+  </main>
+
+  <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <template id="focus-task-template">
+    <li class="task-card">
+      <div>
+        <h3 class="task-name"></h3>
+        <p class="task-meta"></p>
+      </div>
+      <div class="action-row">
+        <button data-action="start" class="button">Start</button>
+        <button data-action="log5" class="button ghost">+5m</button>
+        <button data-action="log15" class="button ghost">+15m</button>
+        <button data-action="complete" class="button success">Done</button>
+      </div>
+    </li>
+  </template>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>

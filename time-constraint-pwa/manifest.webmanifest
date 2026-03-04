@@ -1,0 +1,30 @@
+{
+  "name": "TimeLens Task PWA",
+  "short_name": "TimeLens",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#070b18",
+  "theme_color": "#0f172a",
+  "description": "Time-aware task surfacing with a focused execution page and dedicated setup page.",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Do Now",
+      "short_name": "Do Now",
+      "url": "./index.html"
+    },
+    {
+      "name": "Setup",
+      "short_name": "Setup",
+      "url": "./setup.html"
+    }
+  ]
+}

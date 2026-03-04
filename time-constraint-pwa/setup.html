@@ -3,58 +3,69 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0f172a" />
+  <meta name="theme-color" content="#7c2d12" />
   <title>TimeLens • Setup</title>
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body data-page="setup">
-  <header class="topbar glass">
-    <div>
-      <h1>Setup</h1>
-      <p>Manage tasks, recurrence, and review activity.</p>
-    </div>
-    <a class="button ghost" href="./index.html">Do Now</a>
-  </header>
-
-  <main class="layout setup-grid">
-    <section class="panel">
-      <h2>Add or edit task</h2>
-      <form id="task-form" class="stack" novalidate>
-        <input id="task-id" type="hidden" />
-        <label>Name<input id="task-name" maxlength="80" required placeholder="Write pitch deck" /></label>
-        <label>Estimated minutes<input id="task-effort" type="number" min="1" max="600" inputmode="numeric" required /></label>
-        <label>Recurring
-          <select id="task-repeat">
-            <option value="none">None</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-          </select>
-        </label>
-        <label class="switch"><input id="task-flexible" type="checkbox" /> Flexible</label>
-        <label class="switch"><input id="task-active" type="checkbox" checked /> Active</label>
-        <div class="row">
-          <button class="button" type="submit">Save</button>
-          <button id="cancel-edit" class="button ghost" type="button" hidden>Cancel</button>
-        </div>
-      </form>
-    </section>
-
-    <section class="panel">
-      <div class="panel-head">
-        <h2>All tasks</h2>
-        <button id="reset-recurring" class="button ghost" type="button">Run recurring reset</button>
+  <div class="app-shell">
+    <header class="topbar glass-warm">
+      <div>
+        <p class="eyebrow">Setup</p>
+        <h1>Manage tasks and archives</h1>
+        <p class="subtitle">Everything technical lives here: add, edit, pause, archive, restore, and inspect logs.</p>
       </div>
-      <ul id="setup-task-list" class="task-list"></ul>
-    </section>
+      <a class="button ghost" href="./index.html">Back</a>
+    </header>
 
-    <section class="panel">
-      <h2>Insights</h2>
-      <div id="insight-grid" class="insight-grid"></div>
-      <h3>Recent logs</h3>
-      <ul id="log-list" class="log-list"></ul>
-    </section>
-  </main>
+    <main class="layout setup-grid">
+      <section class="panel">
+        <h2>Add or edit task</h2>
+        <form id="task-form" class="stack" novalidate>
+          <input id="task-id" type="hidden" />
+          <label>Name<input id="task-name" maxlength="80" required placeholder="Write project update" /></label>
+          <label>Estimated minutes<input id="task-effort" type="number" min="1" max="600" inputmode="numeric" required placeholder="25" /></label>
+          <label>Repeat cycle
+            <select id="task-repeat">
+              <option value="none">One-time</option>
+              <option value="daily">Daily reset</option>
+              <option value="weekly">Weekly reset</option>
+            </select>
+          </label>
+          <label class="switch"><input id="task-active" type="checkbox" checked /> Active in Do Now</label>
+          <label class="switch"><input id="task-flexible" type="checkbox" /> Flexible backup task</label>
+          <div class="row">
+            <button class="button" type="submit">Save task</button>
+            <button id="cancel-edit" class="button ghost" type="button" hidden>Cancel</button>
+            <button id="add-starters" class="button ghost" type="button">Add jumpstart tasks</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Active queue</h2>
+          <button id="reset-recurring" class="button ghost" type="button">Run recurring reset</button>
+        </div>
+        <ul id="setup-task-list" class="task-list"></ul>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Archived tasks</h2>
+        </div>
+        <ul id="archived-task-list" class="task-list"></ul>
+      </section>
+
+      <section class="panel">
+        <h2>Insights</h2>
+        <div id="insight-grid" class="insight-grid"></div>
+        <h3>Recent logs</h3>
+        <ul id="log-list" class="log-list"></ul>
+      </section>
+    </main>
+  </div>
 
   <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
@@ -67,7 +78,20 @@
       <div class="action-row">
         <button data-action="edit" class="button ghost">Edit</button>
         <button data-action="reset" class="button ghost">Reset</button>
-        <button data-action="toggle" class="button ghost">Toggle</button>
+        <button data-action="toggle" class="button ghost">Pause/Resume</button>
+        <button data-action="delete" class="button danger">Delete</button>
+      </div>
+    </li>
+  </template>
+
+  <template id="archived-task-template">
+    <li class="task-card compact">
+      <div>
+        <h3 class="task-name"></h3>
+        <p class="task-meta"></p>
+      </div>
+      <div class="action-row">
+        <button data-action="restore" class="button ghost">Restore</button>
         <button data-action="delete" class="button danger">Delete</button>
       </div>
     </li>

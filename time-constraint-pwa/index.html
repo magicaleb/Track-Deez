@@ -3,110 +3,63 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#111827" />
+  <meta name="theme-color" content="#0f172a" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="TimeLens" />
-  <title>TimeLens PWA</title>
+  <title>TimeLens • Do Now</title>
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
-<body>
-  <header class="app-header">
-    <h1>TimeLens</h1>
-    <p>Use available time to decide what to do next.</p>
+<body data-page="focus">
+  <header class="topbar glass">
+    <div>
+      <h1>TimeLens</h1>
+      <p>Choose what fits your time, then execute fast.</p>
+    </div>
+    <a class="button ghost" href="./setup.html">Setup</a>
   </header>
 
-  <main class="app-shell">
-    <section class="card" aria-labelledby="time-constraint-title">
-      <div class="card-title-row">
-        <h2 id="time-constraint-title">Time Constraint</h2>
-        <button id="reset-filter" class="button ghost" type="button">Show all</button>
-      </div>
-      <form id="time-form" class="stack-sm" novalidate>
-        <label for="available-minutes">Available minutes</label>
-        <div class="inline-group">
-          <input id="available-minutes" name="availableMinutes" type="number" min="1" max="1440" inputmode="numeric" placeholder="e.g., 25" />
-          <button class="button" type="submit">Apply</button>
-        </div>
-        <label class="toggle">
-          <input id="include-flex" type="checkbox" checked />
-          Include flexible tasks when no exact match exists
-        </label>
+  <main class="layout">
+    <section class="panel gradient">
+      <h2>Available time</h2>
+      <form id="time-form" class="row" novalidate>
+        <input id="available-minutes" type="number" min="1" max="1440" inputmode="numeric" placeholder="Minutes" />
+        <button class="button" type="submit">Apply</button>
       </form>
-      <p id="filter-status" class="help-text" aria-live="polite"></p>
-    </section>
-
-    <section class="card" aria-labelledby="task-form-title">
-      <h2 id="task-form-title">Add or Edit Task</h2>
-      <form id="task-form" class="stack-sm" novalidate>
-        <input id="task-id" type="hidden" />
-
-        <label for="task-name">Task name</label>
-        <input id="task-name" maxlength="80" required placeholder="Write project brief" />
-
-        <label for="task-effort">Estimated effort (minutes)</label>
-        <input id="task-effort" type="number" min="1" max="600" inputmode="numeric" required />
-
-        <label for="task-repeat">Recurring behavior</label>
-        <select id="task-repeat">
-          <option value="none">Not recurring</option>
-          <option value="daily">Daily reset</option>
-          <option value="weekly">Weekly reset</option>
-        </select>
-
-        <label class="toggle">
-          <input id="task-flexible" type="checkbox" />
-          Flexible task (can be surfaced outside strict constraint)
-        </label>
-
-        <label class="toggle">
-          <input id="task-active" type="checkbox" checked />
-          Active
-        </label>
-
-        <div class="inline-group">
-          <button id="save-task" class="button" type="submit">Save task</button>
-          <button id="cancel-edit" class="button ghost" type="button" hidden>Cancel</button>
-        </div>
-      </form>
-    </section>
-
-    <section class="card" aria-labelledby="task-list-title">
-      <div class="card-title-row">
-        <h2 id="task-list-title">Suggested Tasks</h2>
-        <button id="reset-recurring" class="button ghost" type="button">Run recurring reset</button>
+      <div class="chips" aria-label="Quick time presets">
+        <button class="chip" data-min="15" type="button">15m</button>
+        <button class="chip" data-min="30" type="button">30m</button>
+        <button class="chip" data-min="45" type="button">45m</button>
+        <button class="chip" data-min="60" type="button">60m</button>
+        <button id="clear-filter" class="chip subtle" type="button">Show all</button>
       </div>
-      <div id="empty-state" class="empty" hidden>
-        <p>No tasks match this time window.</p>
-        <p>Try “Show all” or add a flexible task.</p>
-      </div>
-      <ul id="task-list" class="task-list" aria-live="polite"></ul>
+      <p id="filter-status" class="muted" aria-live="polite"></p>
     </section>
 
-    <section class="card" aria-labelledby="activity-title">
-      <h2 id="activity-title">Activity & Insights</h2>
-      <div id="insight-grid" class="insight-grid"></div>
-      <h3>Recent logs</h3>
-      <ul id="log-list" class="log-list"></ul>
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Suggested next</h2>
+        <label class="switch"><input id="include-flex" type="checkbox" checked /> Flexible fallback</label>
+      </div>
+      <div id="empty-state" class="empty" hidden>No match yet. Try “Show all” or add flexible tasks in Setup.</div>
+      <ul id="focus-task-list" class="task-list" aria-live="polite"></ul>
     </section>
   </main>
 
   <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-  <template id="task-template">
-    <li class="task-item">
+  <template id="focus-task-template">
+    <li class="task-card">
       <div>
         <h3 class="task-name"></h3>
         <p class="task-meta"></p>
       </div>
-      <div class="task-actions">
+      <div class="action-row">
         <button data-action="start" class="button">Start</button>
-        <button data-action="log" class="button ghost">Log</button>
-        <button data-action="complete" class="button success">Complete</button>
-        <button data-action="reset" class="button ghost">Reset</button>
-        <button data-action="edit" class="button ghost">Edit</button>
-        <button data-action="delete" class="button danger">Delete</button>
+        <button data-action="log5" class="button ghost">+5m</button>
+        <button data-action="log15" class="button ghost">+15m</button>
+        <button data-action="complete" class="button success">Done</button>
       </div>
     </li>
   </template>

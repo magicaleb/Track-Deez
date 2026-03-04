@@ -203,23 +203,31 @@
 
   function render() {
     const visible = getVisibleTasks();
+    const completedTasks = state.tasks.filter((t) => t.active && t.completedAt);
     el.taskList.innerHTML = '';
-    el.emptyState.hidden = visible.length > 0;
+    el.emptyState.hidden = visible.length > 0 || completedTasks.length > 0;
 
-    visible.forEach((task) => {
+    [...visible, ...completedTasks].forEach((task) => {
+      const isCompleted = !!task.completedAt;
       const fragment = el.taskTemplate.content.cloneNode(true);
       const li = fragment.querySelector('.task-item');
       li.dataset.taskId = task.id;
+      if (isCompleted) li.classList.add('task-completed');
       fragment.querySelector('.task-name').textContent = task.name;
 
       const flags = [
         `${task.effort} min`,
         task.flexible ? 'flexible' : 'strict',
         task.recurring !== 'none' ? task.recurring : null,
-        state.activeTaskId === task.id ? 'in progress' : null
+        state.activeTaskId === task.id ? 'in progress' : null,
+        isCompleted ? 'completed' : null
       ].filter(Boolean).join(' • ');
 
       fragment.querySelector('.task-meta').textContent = flags;
+      fragment.querySelector('[data-action="start"]').hidden = isCompleted;
+      fragment.querySelector('[data-action="log"]').hidden = isCompleted;
+      fragment.querySelector('[data-action="complete"]').hidden = isCompleted;
+      fragment.querySelector('[data-action="reset"]').hidden = !isCompleted;
       el.taskList.appendChild(fragment);
     });
 

@@ -146,6 +146,9 @@ input, select {
 .task-name { margin: 0; font-size: 1rem; }
 .task-meta { margin: .2rem 0 0; color: var(--muted); font-size: .9rem; }
 
+.task-item.task-completed { opacity: 0.55; }
+.task-item.task-completed .task-name { text-decoration: line-through; }
+
 .task-actions {
   display: flex;
   gap: .4rem;

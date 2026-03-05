@@ -104,13 +104,12 @@ p { margin: 0; }
   width: 100%;
   margin: 0 auto;
   display: grid;
-  gap: 0.75rem;
-  align-content: start;
+  grid-template-rows: auto 1fr auto;
+  gap: 0.65rem;
+  align-content: stretch;
   min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: 0.25rem;
+  overflow: hidden;
+  padding-bottom: 0.2rem;
 }
 
 .setup-grid { grid-template-columns: 1fr; }
@@ -210,11 +209,11 @@ label { font-size: 0.9rem; color: #ffedd5; display: grid; gap: 0.3rem; }
 }
 
 #result-controls {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
 }
 
 .task-hero {
-  min-height: 48svh;
+  min-height: 0;
   display: grid;
   align-content: space-between;
   gap: 1rem;
@@ -244,6 +243,17 @@ label { font-size: 0.9rem; color: #ffedd5; display: grid; gap: 0.3rem; }
 .task-hero-actions {
   display: grid;
   gap: 0.5rem;
+}
+
+
+#choose-panel {
+  overflow: hidden;
+}
+
+#choose-list {
+  max-height: 26svh;
+  overflow-y: auto;
+  padding-right: 0.1rem;
 }
 
 .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }

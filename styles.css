@@ -19,6 +19,18 @@
     --surface: #ffffff;
     --border: #e5e7eb;
     --shadow: rgba(0, 0, 0, 0.1);
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --nav-height: 80px;
+}
+
+html,
+body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior-y: none;
 }
 
 body {
@@ -29,6 +41,9 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     overflow-x: hidden;
+    overflow-y: hidden;
+    overscroll-behavior: none;
+    touch-action: pan-y;
 }
 
 /* iOS specific optimizations */
@@ -40,9 +55,12 @@ input, textarea, select {
 
 #app {
     min-height: 100vh;
+    min-height: 100dvh;
+    height: 100vh;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: 0;
 }
 
 /* Bottom Navigation */
@@ -55,7 +73,7 @@ input, textarea, select {
     border-top: 1px solid var(--border);
     display: flex;
     justify-content: space-around;
-    padding: 0.5rem 0;
+    padding: 0.5rem calc(0.25rem + var(--safe-right)) calc(0.5rem + var(--safe-bottom)) calc(0.25rem + var(--safe-left));
     z-index: 100;
     box-shadow: 0 -2px 10px var(--shadow);
 }
@@ -97,7 +115,11 @@ input, textarea, select {
     display: none;
     flex-direction: column;
     min-height: 100vh;
-    padding-bottom: 80px;
+    min-height: 100dvh;
+    height: 100vh;
+    height: 100dvh;
+    padding-bottom: calc(var(--nav-height) + var(--safe-bottom));
+    overflow: hidden;
 }
 
 .view.active {
@@ -106,10 +128,9 @@ input, textarea, select {
 
 .view-header {
     background: var(--surface);
-    padding: 1rem;
+    padding: calc(1rem + var(--safe-top)) calc(1rem + var(--safe-right)) 1rem calc(1rem + var(--safe-left));
     border-bottom: 1px solid var(--border);
-    position: sticky;
-    top: 0;
+    position: relative;
     z-index: 50;
     box-shadow: 0 1px 3px var(--shadow);
 }
@@ -123,10 +144,13 @@ input, textarea, select {
 
 .view-content {
     flex: 1;
-    padding: 1rem;
+    padding: 1rem calc(1rem + var(--safe-right)) calc(1rem + var(--safe-bottom)) calc(1rem + var(--safe-left));
     max-width: 600px;
     margin: 0 auto;
     width: 100%;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
 }
 
 /* Date Display */
@@ -925,6 +949,7 @@ input, textarea, select {
 
 .setting-info {
     flex: 1;
+    min-width: 0;
 }
 
 .setting-name {
@@ -936,11 +961,14 @@ input, textarea, select {
 .setting-detail {
     font-size: 0.875rem;
     color: var(--text-secondary);
+    overflow-wrap: anywhere;
 }
 
 .setting-actions {
     display: flex;
     gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 .btn-icon {
@@ -1327,6 +1355,25 @@ button, .habit-item, .calendar-day {
     display: flex;
     overflow-x: auto;
     min-height: calc(100vh - 180px);
+    min-height: calc(100dvh - 180px);
+}
+
+@media (max-width: 640px) {
+    .setting-item {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+
+    .setting-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .section-header {
+        flex-wrap: wrap;
+        align-items: flex-start;
+    }
 }
 
 .time-column {

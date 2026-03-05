@@ -8,30 +8,49 @@
   --success: #22c55e;
   --danger: #fb7185;
   --border: rgba(255, 237, 213, 0.35);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
 }
 
 * { box-sizing: border-box; }
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
 
 body {
   margin: 0;
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--text);
   background: linear-gradient(160deg, #dc2626 0%, #f97316 50%, #7c2d12 100%);
-  min-height: 100svh;
+  min-height: 100vh;
+  min-height: 100dvh;
+  touch-action: pan-y;
 }
 
 .app-shell {
-  min-height: 100svh;
+  min-height: 100vh;
+  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
   padding:
-    max(0.65rem, env(safe-area-inset-top))
-    max(0.85rem, env(safe-area-inset-right))
-    max(0.9rem, env(safe-area-inset-bottom))
-    max(0.85rem, env(safe-area-inset-left));
+    max(0.65rem, var(--safe-top))
+    max(0.85rem, var(--safe-right))
+    max(0.9rem, var(--safe-bottom))
+    max(0.85rem, var(--safe-left));
 }
 
 .focus-shell {
   display: grid;
-  grid-template-rows: auto 1fr;
 }
 
 .focus-topbar {
@@ -73,6 +92,11 @@ p { margin: 0; }
   margin: 0 auto;
   display: grid;
   gap: 0.75rem;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.25rem;
 }
 
 .focus-main {
@@ -82,6 +106,11 @@ p { margin: 0; }
   display: grid;
   gap: 0.75rem;
   align-content: start;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.25rem;
 }
 
 .setup-grid { grid-template-columns: 1fr; }
@@ -217,7 +246,7 @@ label { font-size: 0.9rem; color: #ffedd5; display: grid; gap: 0.3rem; }
   gap: 0.5rem;
 }
 
-.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 
 .task-list, .log-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
 .task-card {
@@ -231,7 +260,11 @@ label { font-size: 0.9rem; color: #ffedd5; display: grid; gap: 0.3rem; }
 
 .task-card.compact { gap: 0.35rem; }
 .task-meta { color: #ffedd5; font-size: 0.86rem; }
-.action-row { display: flex; gap: 0.35rem; overflow-x: auto; }
+.action-row { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+
+.action-row .button {
+  flex: 1 1 140px;
+}
 
 .switch { display: flex; align-items: center; gap: 0.45rem; color: #fff; font-size: 0.88rem; }
 .switch input { width: 1rem; height: 1rem; }
@@ -248,11 +281,30 @@ label { font-size: 0.9rem; color: #ffedd5; display: grid; gap: 0.3rem; }
 .insight p { color: #ffedd5; font-size: 0.8rem; }
 .log-list li { border-bottom: 1px solid rgba(255, 237, 213, 0.2); padding: 0.4rem 0; font-size: 0.86rem; color: #fff7ed; }
 
+@media (max-width: 560px) {
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .topbar .button {
+    width: 100%;
+  }
+
+  .task-card.compact {
+    gap: 0.5rem;
+  }
+
+  .action-row .button {
+    flex: 1 1 100%;
+  }
+}
+
 #toast {
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(12px + env(safe-area-inset-bottom));
+  bottom: calc(12px + var(--safe-bottom));
   background: #431407;
   border: 1px solid rgba(255, 237, 213, 0.4);
   border-radius: 999px;

@@ -22,6 +22,7 @@ body {
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
+  background: #7c2d12;
 }
 
 body {
@@ -43,10 +44,10 @@ body {
   grid-template-rows: auto 1fr;
   overflow: hidden;
   padding:
-    max(0.65rem, var(--safe-top))
-    max(0.85rem, var(--safe-right))
-    max(0.9rem, var(--safe-bottom))
-    max(0.85rem, var(--safe-left));
+    calc(var(--safe-top) + 0.65rem)
+    calc(var(--safe-right) + 0.85rem)
+    calc(var(--safe-bottom) + 0.9rem)
+    calc(var(--safe-left) + 0.85rem);
 }
 
 .focus-shell {
@@ -270,10 +271,16 @@ label { font-size: 0.9rem; color: #ffedd5; display: grid; gap: 0.3rem; }
 
 .task-card.compact { gap: 0.35rem; }
 .task-meta { color: #ffedd5; font-size: 0.86rem; }
-.action-row { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.action-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+}
 
 .action-row .button {
-  flex: 1 1 140px;
+  min-height: 40px;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.88rem;
 }
 
 .switch { display: flex; align-items: center; gap: 0.45rem; color: #fff; font-size: 0.88rem; }
@@ -306,7 +313,7 @@ label { font-size: 0.9rem; color: #ffedd5; display: grid; gap: 0.3rem; }
   }
 
   .action-row .button {
-    flex: 1 1 100%;
+    width: 100%;
   }
 }
 

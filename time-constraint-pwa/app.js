@@ -35,7 +35,6 @@
     const status = document.getElementById('filter-status');
     const timeInput = document.getElementById('available-minutes');
     const goButton = document.getElementById('go-button');
-    const rerollButton = document.getElementById('reroll-button');
     const chooseButton = document.getElementById('choose-button');
     const closeChoose = document.getElementById('close-choose');
     const primaryControls = document.getElementById('primary-controls');
@@ -63,18 +62,6 @@
       const task = pickTask(candidates, null);
       selectTask(task.id);
       status.textContent = buildConstraintStatus(minutes, candidates.length);
-      persist();
-      renderTaskCard();
-      renderChooseList();
-    });
-
-    rerollButton.addEventListener('click', () => {
-      const minutes = Number(timeInput.value);
-      if (!isValidMinutes(minutes)) return toast('Enter valid minutes first.');
-      const candidates = getMatchingTasks(minutes);
-      if (!candidates.length) return toast('No tasks available for this time.');
-      const task = pickTask(candidates, state.selectedTaskId);
-      selectTask(task.id);
       persist();
       renderTaskCard();
       renderChooseList();

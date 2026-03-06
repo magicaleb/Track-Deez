@@ -53,6 +53,10 @@
     </main>
   </div>
 
+  <!-- iOS haptic feedback: WebKit fires haptics when a switch-type checkbox is toggled -->
+  <input type="checkbox" switch id="haptic-trigger" class="haptic-trigger" aria-hidden="true" tabindex="-1">
+  <label for="haptic-trigger" id="haptic-label" class="haptic-trigger" aria-hidden="true"></label>
+
   <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <template id="choose-item-template">

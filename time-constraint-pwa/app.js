@@ -51,6 +51,7 @@
     goButton.addEventListener('click', () => {
       const minutes = Number(timeInput.value);
       if (!isValidMinutes(minutes)) return toast('Enter valid minutes first.');
+      haptic('medium');
       state.filterMinutes = minutes;
       const candidates = getMatchingTasks(minutes);
       if (!candidates.length) {
@@ -85,6 +86,7 @@
       const taskId = item?.dataset.taskId;
       const task = state.tasks.find((t) => t.id === taskId);
       if (!task) return;
+      haptic('light');
       selectTask(task.id);
       choosePanel.hidden = true;
       persist();
@@ -95,6 +97,7 @@
     doneButton.addEventListener('click', () => {
       const task = getSelectedTask();
       if (!task) return;
+      haptic('success');
       task.completedAt = new Date().toISOString();
       task.active = false;
       addLog(task.id, `Completed "${task.name}"`, task.effort);
@@ -106,6 +109,7 @@
     progressButton.addEventListener('click', () => {
       const task = getSelectedTask();
       if (!task) return;
+      haptic('medium');
 
       const spentInput = window.prompt(`How many minutes did you spend on "${task.name}"?`, '15');
       if (spentInput === null) return;
@@ -498,6 +502,41 @@
     el.textContent = message;
     el.classList.add('show');
     setTimeout(() => el.classList.remove('show'), 1700);
+  }
+
+  /**
+   * Trigger haptic feedback.
+   *
+   * On Android / desktop browsers the standard Vibration API is used.
+   * On iOS Safari (which blocks navigator.vibrate) the WebKit-specific
+   * "silent switch" hack is used: clicking the label of an
+   * <input type="checkbox" switch> fires a native haptic pulse.
+   * Patterns are expressed as an array of pulse-counts separated by
+   * slightly longer pauses — e.g. [1] = single tap, [3] = three quick taps.
+   *
+   * @param {'light'|'medium'|'success'|'error'} [type='medium']
+   */
+  function haptic(type) {
+    const PRESETS = {
+      light:   { count: 1, interval: 0,  vibrate: [15] },
+      medium:  { count: 1, interval: 0,  vibrate: [30] },
+      success: { count: 3, interval: 55, vibrate: [30, 40, 30, 40, 30] },
+      error:   { count: 2, interval: 80, vibrate: [50, 60, 50] },
+    };
+    const preset = PRESETS[type] || PRESETS.medium;
+
+    if (navigator.vibrate) {
+      navigator.vibrate(preset.vibrate);
+      return;
+    }
+
+    // iOS WebKit: pulse the label of the hidden switch checkbox
+    const label = document.getElementById('haptic-label');
+    if (!label) return;
+    const gap = preset.interval || 55;
+    for (let i = 0; i < preset.count; i++) {
+      setTimeout(() => label.click(), i * gap);
+    }
   }
 
   function daysBetween(a, b) {
